@@ -1,0 +1,148 @@
+Project Plan: Product Research Tool for Trending Dropship Products
+
+Objective: Build a clean, intuitive tool to identify trending dropship products, their geographic/cultural trends, and associated marketing videos. Focus on high-quality algorithms and actionable metrics.
+Core Features & Workflow
+
+    Product Discovery Engine
+
+        Data Sources:
+
+            Social media platforms (TikTok, Instagram Reels, YouTube Shorts) for viral product trends.
+
+            E-commerce platforms (AliExpress, Amazon, Shopify stores) for sales velocity.
+
+            Google Trends and Keyword Planner for search volume spikes.
+
+            APIs: TikTok Trends API, AliExpress API, Google Trends API, Shopify web crawler (public store data).
+
+        Scraping Logic:
+
+            Prioritize products with sudden spikes in engagement (likes, shares, comments) or sales.
+
+            Filter out products with inconsistent/long-term growth (focus on "breakout" trends).
+
+    Trend Detection Algorithm
+
+        Key Metrics:
+
+            Engagement Velocity: Rate of increase in social media mentions/shares (e.g., +500% TikTok shares in 3 days).
+
+            Sales Spike Score: AliExpress/Amazon sales rank changes over 7 days.
+
+            Search Interest: Google Trends score (0–100) for product keywords.
+
+            Geographic Heatmap: Regions driving the trend (e.g., "Product X is trending in Canada and Australia").
+
+        Scoring System:
+
+            Assign a Trend Score (1–100) combining weighted metrics (e.g., 40% engagement, 30% sales, 20% search, 10% geographic spread).
+
+            Use ML to flag anomalies (e.g., a product with low sales but exploding search volume).
+
+    Marketing Video Aggregation
+
+        Video Source Criteria:
+
+            Pull videos from TikTok/YouTube/Instagram that directly showcase the product.
+
+            Prioritize videos with high engagement (views, likes) and clear calls-to-action (e.g., "Link in bio").
+
+        Output:
+
+            Embeddable video links + metadata (views, upload date, platform).
+
+            Filter videos by region (e.g., "Show only videos trending in the U.S.").
+
+    Dashboard & UI
+
+        Primary View:
+
+            Product List: Clean card-based layout with thumbnail, Trend Score, price range, and geographic heatmap.
+
+            Filters:
+
+                Trend Score threshold (e.g., "Show products >70").
+
+                Category (e.g., beauty, tech).
+
+                Region (e.g., "Trending in Europe").
+
+        Product Detail Panel:
+
+            Trend Score breakdown (engagement, sales, search).
+
+            Historical trend graph (30-day performance).
+
+            Embedded videos (auto-play muted previews on hover).
+
+        Export: CSV/Excel list of products with metrics.
+
+Quality Algorithms
+
+    False Positive Mitigation:
+
+        Exclude products with paid ad spikes (e.g., detect "Sponsored" tags in social posts).
+
+        Cross-validate trends across multiple platforms (e.g., a TikTok trend must correlate with rising AliExpress sales).
+
+    Geographic Relevance:
+
+        Use IP analysis from social posts/videos to map trends to regions.
+
+    Video Relevance:
+
+        NLP to ensure videos mention the product (e.g., "I bought this [product] from Amazon…").
+
+Key Metrics to Display
+
+    Trend Score (Composite metric).
+
+    Engagement Rate (Likes/Views ratio).
+
+    Sales Velocity (Units sold/day vs. last week).
+
+    Search Volume Growth (Week-over-week % increase).
+
+    Top Trending Regions (List of countries/states).
+
+    Video Performance (Views, platform, upload date).
+
+Technical Stack
+
+    Backend:
+
+        Python (scraping, data processing).
+
+        Machine Learning: TensorFlow/PyTorch for anomaly detection.
+
+        Database: PostgreSQL (structured trend data) + Redis (caching).
+
+    Frontend:
+
+        React.js (dynamic UI) + D3.js (trend graphs).
+
+        Minimalist design: Light/dark mode, zero clutter.
+
+    Hosting: AWS EC2 (scalable) or Vercel (simpler).
+
+Example Use Case
+
+    User opens the dashboard and sets filters: "Trend Score > 80", "Category: Home Gadgets".
+
+    Tool returns:
+
+        Product: "Self-Stirring Mug".
+
+        Trend Score: 84 (TikTok engagement +300%, AliExpress sales +200%).
+
+        Trending in: USA (45%), Germany (30%).
+
+        Videos: 3 TikTok links (20k+ likes each).
+
+    User clicks product to see sales velocity graph and exports the list for supplier research.
+
+Risk Mitigation
+
+    Data Accuracy: Regularly update scraping logic to bypass platform anti-bot measures.
+
+    Video Relevance: Use manual feedback loops ("Flag irrelevant video" button).
