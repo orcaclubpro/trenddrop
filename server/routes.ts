@@ -1,11 +1,11 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
-import { productFilterSchema } from "@shared/schema";
-import { ProductService } from "./services/product-service";
-import { TrendService } from "./services/trend-service";
-import { VideoService } from "./services/video-service";
-import { log } from "./vite";
+import { storage } from "./storage.js";
+import { productFilterSchema } from "@shared/schema.js";
+import { ProductService } from "./services/product-service.js";
+import { TrendService } from "./services/trend-service.js";
+import { VideoService } from "./services/video-service.js";
+import { log } from "./vite.js";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize services

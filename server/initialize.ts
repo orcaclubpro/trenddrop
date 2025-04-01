@@ -51,8 +51,8 @@ export async function initializeDatabase(): Promise<boolean> {
     // Create Neon PostgreSQL client
     const sql = neon(process.env.DATABASE_URL);
     
-    // Create Drizzle ORM instance
-    db = drizzle(sql);
+    // Create Drizzle ORM instance with query capabilities
+    db = drizzle(sql, { schema });
     
     // Test connection
     console.log('[Database] Testing connection...');

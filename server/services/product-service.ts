@@ -1,6 +1,6 @@
-import { IStorage } from "../storage";
-import { InsertProduct, Product, ProductFilter } from "@shared/schema";
-import { log } from "../vite";
+import { IStorage } from "../storage.js";
+import { InsertProduct, Product, ProductFilter } from "@shared/schema.js";
+import { log } from "../vite.js";
 
 export class ProductService {
   private storage: IStorage;

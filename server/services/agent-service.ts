@@ -1,10 +1,13 @@
-import { log } from '../vite';
-import databaseService from './database-service';
-import { Product, InsertProduct, InsertTrend, InsertRegion, InsertVideo } from '@shared/schema';
+import { log } from '../vite.js';
+import databaseService from './database-service.js';
+import * as schema from '@shared/schema.js';
+import { Product, InsertProduct, InsertTrend, InsertRegion, InsertVideo } from '@shared/schema.js';
+import { eq, sql } from 'drizzle-orm';
 import axios from 'axios';
 import { parse as parseHTML } from 'node-html-parser';
-import { TrendService } from './trend-service';
+import { TrendService } from './trend-service.js';
 import { JSDOM } from 'jsdom';
+import WebSocket from 'ws';
 
 // Scraping interval (default: 1 hour)
 const SCRAPING_INTERVAL = process.env.SCRAPING_INTERVAL 
@@ -65,12 +68,17 @@ export class AgentService {
     try {
       log('Running product scraping task', 'agent');
       
-      // Ensure database is initialized
+      // Check if database is initialized
       if (!databaseService.isInitialized()) {
-        log('Database not initialized, skipping scraping task', 'agent');
-        return;
+        log('Database not initialized, will reinitialize', 'agent');
+        const success = await databaseService.initialize();
+        if (!success) {
+          log('Failed to initialize database, skipping scraping task', 'agent');
+          return;
+        }
       }
 
+      // Get the database instance
       const db = databaseService.getDb();
 
       // 1. Scrape trending products
@@ -79,51 +87,41 @@ export class AgentService {
       // 2. Process each product
       for (const product of products) {
         try {
-          // Check if product already exists
-          const existingProduct = await db.query.products.findFirst({
-            where: (products, { eq }) => eq(products.name, product.name)
-          });
-
-          let productId: number;
-          
-          if (existingProduct) {
-            // Update existing product
-            productId = existingProduct.id;
-            await db.update(db.products)
-              .set({
+          // Insert new product with conflict handling
+          const result = await db.insert(schema.products)
+            .values(product)
+            .onConflictDoUpdate({
+              target: schema.products.name,
+              set: {
                 trendScore: product.trendScore,
                 engagementRate: product.engagementRate,
                 salesVelocity: product.salesVelocity,
                 searchVolume: product.searchVolume,
                 geographicSpread: product.geographicSpread,
                 updatedAt: new Date()
-              })
-              .where(({ id }) => id.equals(productId));
-              
-            log(`Updated product: ${product.name}`, 'agent');
-          } else {
-            // Insert new product
-            const result = await db.insert(db.products).values(product).returning();
-            productId = result[0].id;
-            log(`Added new product: ${product.name}`, 'agent');
-          }
+              }
+            })
+            .returning();
+          
+          const productId = result[0].id;
+          log(`Processed product: ${product.name}`, 'agent');
 
           // 3. Get trend data for the product
           const trends = await this.scrapeTrends(productId, product.name);
           for (const trend of trends) {
-            await db.insert(db.trends).values(trend).onConflictDoNothing();
+            await db.insert(schema.trends).values(trend).onConflictDoNothing();
           }
 
           // 4. Get region data for the product
           const regions = await this.scrapeRegions(productId, product.name);
           for (const region of regions) {
-            await db.insert(db.regions).values(region).onConflictDoNothing();
+            await db.insert(schema.regions).values(region).onConflictDoNothing();
           }
 
           // 5. Get marketing videos for the product
           const videos = await this.scrapeVideos(productId, product.name);
           for (const video of videos) {
-            await db.insert(db.videos).values(video).onConflictDoNothing();
+            await db.insert(schema.videos).values(video).onConflictDoNothing();
           }
 
           // 6. Broadcast update to connected WebSocket clients

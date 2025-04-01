@@ -1,6 +1,6 @@
-import { IStorage } from "../storage";
-import { InsertVideo, Video } from "@shared/schema";
-import { log } from "../vite";
+import { IStorage } from "../storage.js";
+import { InsertVideo, Video } from "@shared/schema.js";
+import { log } from "../vite.js";
 
 export class VideoService {
   private storage: IStorage;

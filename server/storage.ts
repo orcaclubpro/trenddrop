@@ -5,10 +5,10 @@ import {
   regions, type Region, type InsertRegion,
   videos, type Video, type InsertVideo,
   type ProductFilter, type DashboardSummary
-} from "@shared/schema";
+} from "@shared/schema.js";
 import { eq, gte, and, desc, asc, sql } from "drizzle-orm";
-import databaseService from "./services/database-service";
-import { log } from "./vite";
+import databaseService from "./services/database-service.js";
+import { log } from "./vite.js";
 
 // Define the storage interface
 export interface IStorage {

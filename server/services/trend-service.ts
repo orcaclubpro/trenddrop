@@ -1,6 +1,6 @@
-import { IStorage } from "../storage";
-import { InsertTrend, Trend } from "@shared/schema";
-import { log } from "../vite";
+import { IStorage } from "../storage.js";
+import { InsertTrend, Trend } from "@shared/schema.js";
+import { log } from "../vite.js";
 
 export class TrendService {
   private storage: IStorage;

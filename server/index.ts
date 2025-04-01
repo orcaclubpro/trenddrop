@@ -1,8 +1,8 @@
 import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
-import databaseService from "./services/database-service";
-import { startAgentService } from "./services/agent-service";
+import { registerRoutes } from "./routes.js";
+import { setupVite, serveStatic, log } from "./vite.js";
+import databaseService from "./services/database-service.js";
+import { startAgentService } from "./services/agent-service.js";
 import WebSocket from "ws";
 
 const MAX_RETRIES = Infinity; // Keep trying indefinitely
