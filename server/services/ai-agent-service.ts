@@ -928,10 +928,12 @@ export class AIAgentService {
 
   // Broadcast a status update to WebSocket clients
   private broadcastStatus(status: string, data: any = {}): void {
-    const wsClients = (global as any).wsClients as Set<WebSocket> | undefined;
+    // Use the global broadcast function for WebSocket messages
+    const broadcastFn = (global as any).broadcastWebSocketMessage;
     
-    if (!wsClients || wsClients.size === 0) {
-      return; // No connected clients
+    if (!broadcastFn) {
+      log('WebSocket broadcast function not available', 'ai-agent');
+      return;
     }
     
     const statusMessage = {
@@ -941,22 +943,21 @@ export class AIAgentService {
       ...data
     };
     
-    const messageString = JSON.stringify(statusMessage);
-    
-    // Broadcast to all connected clients
-    wsClients.forEach(client => {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(messageString);
-      }
-    });
+    // Broadcast message to all connected clients using the global helper
+    const clientCount = broadcastFn(statusMessage);
+    if (clientCount > 0) {
+      log(`Broadcast AI agent status "${status}" to ${clientCount} clients`, 'ai-agent');
+    }
   }
 
   // Broadcast product update to WebSocket clients
   private broadcastUpdate(productId: number): void {
-    const wsClients = (global as any).wsClients as Set<WebSocket> | undefined;
+    // Use the global broadcast function for WebSocket messages
+    const broadcastFn = (global as any).broadcastWebSocketMessage;
     
-    if (!wsClients || wsClients.size === 0) {
-      return; // No connected clients
+    if (!broadcastFn) {
+      log('WebSocket broadcast function not available', 'ai-agent');
+      return;
     }
     
     const updateMessage = {
@@ -965,14 +966,11 @@ export class AIAgentService {
       timestamp: new Date().toISOString()
     };
     
-    const messageString = JSON.stringify(updateMessage);
-    
-    // Broadcast to all connected clients
-    wsClients.forEach(client => {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(messageString);
-      }
-    });
+    // Broadcast message to all connected clients using the global helper
+    const clientCount = broadcastFn(updateMessage);
+    if (clientCount > 0) {
+      log(`Broadcast product update for ID ${productId} to ${clientCount} clients`, 'ai-agent');
+    }
   }
 }
 

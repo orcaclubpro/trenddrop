@@ -107,37 +107,122 @@ async function initializeApp(retryCount = 0): Promise<void> {
       console.error(`Error: ${err.message}`);
     });
 
-    // Setup WebSocket server for real-time updates with explicit path
+    // Setup WebSocket server with improved reliability
     const wss = new WebSocket.Server({ 
       server,
-      path: '/ws' // Match client-side connection path
+      path: '/ws',
+      // Increase the ping timeout for better reliability
+      clientTracking: true,
+      // Allow more connections (default is 10)
+      maxPayload: 1024 * 1024, // 1MB max payload
     });
     
-    // Store active WebSocket connections
-    const clients = new Set<WebSocket>();
+    // Store active WebSocket connections with metadata
+    const clients = new Map<WebSocket, {
+      id: string,
+      connectedAt: Date,
+      lastActivity: Date,
+      isAlive: boolean,
+      clientInfo: Record<string, any>
+    }>();
+    
+    // Client heartbeat detection system
+    const heartbeat = (ws: WebSocket) => {
+      const client = clients.get(ws);
+      if (client) {
+        client.isAlive = true;
+        client.lastActivity = new Date();
+      }
+    };
+    
+    // Ping all clients every 30 seconds to keep connections alive
+    const pingInterval = setInterval(() => {
+      wss.clients.forEach(ws => {
+        const client = clients.get(ws);
+        if (client && !client.isAlive) {
+          // Client didn't respond to previous ping
+          log(`Closing inactive WebSocket: ${client.id}`);
+          clients.delete(ws);
+          return ws.terminate();
+        }
+        
+        // Mark as not alive until we get a pong response
+        if (client) {
+          client.isAlive = false;
+        }
+        
+        // Send ping (handled automatically by WebSocket protocol)
+        try {
+          ws.ping();
+        } catch (error) {
+          log(`Error sending ping: ${error}`);
+          clients.delete(ws);
+          ws.terminate();
+        }
+      });
+    }, 30000);
+    
+    // Clean up interval on server close
+    wss.on('close', () => {
+      clearInterval(pingInterval);
+    });
     
     // Handle WebSocket connections
     wss.on("connection", (ws, req) => {
-      log(`WebSocket client connected: ${req.url}`);
-      clients.add(ws);
+      const clientId = `client-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      const clientIp = req.socket.remoteAddress || 'unknown';
+      const userAgent = req.headers['user-agent'] || 'unknown';
+      
+      log(`WebSocket client connected: ${clientId} (${clientIp}, ${userAgent})`);
+      
+      // Store client info
+      clients.set(ws, {
+        id: clientId,
+        connectedAt: new Date(),
+        lastActivity: new Date(),
+        isAlive: true,
+        clientInfo: {
+          ip: clientIp,
+          userAgent,
+          url: req.url
+        }
+      });
       
       // Send initial state to client
       ws.send(JSON.stringify({ 
         type: "connection_established", 
+        clientId: clientId,
         message: "Connected to TrendDrop real-time updates",
         databaseStatus: "connected",
-        agentStatus: "initializing"
+        agentStatus: "initializing",
+        timestamp: new Date().toISOString()
       }));
+      
+      // Setup pong response handler (client is still alive)
+      ws.on('pong', () => {
+        heartbeat(ws);
+      });
       
       // Handle messages from client
       ws.on("message", (message) => {
         try {
+          // Update client activity timestamp
+          const client = clients.get(ws);
+          if (client) {
+            client.lastActivity = new Date();
+            client.isAlive = true;
+          }
+          
           const data = JSON.parse(message.toString());
-          log(`Received client message: ${JSON.stringify(data)}`);
+          
+          // Don't log ping messages to reduce noise
+          if (data.type !== "ping") {
+            log(`Received client message from ${clientId}: ${JSON.stringify(data)}`);
+          }
           
           // Handle client_connected message by sending current agent status
           if (data.type === "client_connected") {
-            log("Received client_connected message, sending agent status");
+            log(`Received client_connected message from ${clientId}, sending agent status`);
             
             // Get current agent status
             const agentStatus = getAgentStatus();
@@ -150,7 +235,12 @@ async function initializeApp(retryCount = 0): Promise<void> {
               nextRun: agentStatus.nextRun
             };
             
-            log(`Sending status update to client: ${JSON.stringify(statusMessage)}`);
+            // Update client info if provided
+            if (data.clientId && client) {
+              client.clientInfo.clientId = data.clientId;
+            }
+            
+            log(`Sending status update to client ${clientId}`);
             ws.send(JSON.stringify(statusMessage));
           }
           
@@ -160,7 +250,7 @@ async function initializeApp(retryCount = 0): Promise<void> {
               const pongMessage = {
                 type: "pong",
                 timestamp: new Date().toISOString(),
-                clientId: data.clientId
+                clientId: data.clientId || clientId
               };
               ws.send(JSON.stringify(pongMessage));
             } catch (error) {
@@ -172,19 +262,36 @@ async function initializeApp(retryCount = 0): Promise<void> {
         }
       });
       
-      ws.on("close", () => {
-        log("WebSocket client disconnected");
+      ws.on("close", (code, reason) => {
+        const client = clients.get(ws);
+        log(`WebSocket client disconnected: ${client?.id || 'unknown'} (Code: ${code}, Reason: ${reason})`);
         clients.delete(ws);
       });
       
       ws.on("error", (error) => {
-        log(`WebSocket error: ${error}`);
+        const client = clients.get(ws);
+        log(`WebSocket error for client ${client?.id || 'unknown'}: ${error}`);
         clients.delete(ws);
       });
     });
 
-    // Expose WebSocket clients to other modules
-    (global as any).wsClients = clients;
+    // Expose WebSocket server to other modules for broadcasting
+    (global as any).wss = wss;
+    
+    // Helper to broadcast from anywhere in the application
+    (global as any).broadcastWebSocketMessage = (message: any) => {
+      const messageStr = typeof message === 'string' ? message : JSON.stringify(message);
+      wss.clients.forEach(ws => {
+        if (ws.readyState === WebSocket.OPEN) {
+          try {
+            ws.send(messageStr);
+          } catch (error) {
+            log(`Error in global broadcast: ${error}`);
+          }
+        }
+      });
+      return wss.clients.size; // Return number of clients message was sent to
+    };
 
     // Setup vite or static file serving
     if (app.get("env") === "development") {
@@ -211,9 +318,14 @@ async function initializeApp(retryCount = 0): Promise<void> {
           aiAgentStatus
         });
         
-        clients.forEach(client => {
-          if (client.readyState === WebSocket.OPEN) {
-            client.send(aiStatusMessage);
+        // Broadcast to all connected clients
+        wss.clients.forEach(ws => {
+          if (ws.readyState === WebSocket.OPEN) {
+            try {
+              ws.send(aiStatusMessage);
+            } catch (error) {
+              log(`Error sending AI agent status: ${error}`);
+            }
           }
         });
       } else {
@@ -231,46 +343,54 @@ async function initializeApp(retryCount = 0): Promise<void> {
     });
     
     // Log the number of connected clients
-    log(`Broadcasting agent start message to ${clients.size} clients`);
+    log(`Broadcasting agent start message to ${wss.clients.size} clients`);
     
-    clients.forEach(client => {
-      if (client.readyState === WebSocket.OPEN) {
-        log(`Sending agent_status message to client`);
-        client.send(startMessage);
-      } else {
-        log(`Client not in OPEN state: ${client.readyState}`);
-      }
-    });
+    // Broadcast helper function
+    const broadcastToClients = (message: string) => {
+      wss.clients.forEach(ws => {
+        if (ws.readyState === WebSocket.OPEN) {
+          try {
+            ws.send(message);
+          } catch (error) {
+            log(`Error broadcasting message: ${error}`);
+            // The ws instance will be cleaned up by the heartbeat mechanism
+          }
+        }
+      });
+    };
+    
+    // Broadcast to all connected clients
+    broadcastToClients(startMessage);
     
     // Set a periodic re-broadcast of status to catch any clients
     // that might have connected after the initial broadcast
     setInterval(() => {
-      if (clients.size > 0) {
-        // Clean up closed or error connections
-        const closedClients = new Set<WebSocket>();
-        clients.forEach(client => {
-          if (client.readyState === WebSocket.CLOSED || 
-              client.readyState === WebSocket.CLOSING) {
-            closedClients.add(client);
-          }
+      if (wss.clients.size > 0) {
+        // Get latest status
+        const agentStatus = getAgentStatus();
+        const latestMessage = JSON.stringify({
+          type: "agent_status",
+          status: agentStatus.status || "running",
+          timestamp: new Date().toISOString(),
+          message: "Agent service status update",
+          lastRun: agentStatus.lastRun,
+          nextRun: agentStatus.nextRun
         });
         
-        // Remove closed clients
-        closedClients.forEach(client => {
-          clients.delete(client);
-        });
+        log(`Re-broadcasting agent status to ${wss.clients.size} clients`);
+        broadcastToClients(latestMessage);
         
-        // Only broadcast if we still have open clients
-        if (clients.size > 0) {
-          log(`Re-broadcasting agent status to ${clients.size} clients`);
-          clients.forEach(client => {
-            if (client.readyState === WebSocket.OPEN) {
-              client.send(startMessage);
-            }
-          });
-        }
+        // Also update connection stats for monitoring
+        const connectionStats = {
+          type: "connection_stats",
+          timestamp: new Date().toISOString(),
+          connectedClients: wss.clients.size,
+          uptime: Math.floor(process.uptime()) // Server uptime in seconds
+        };
+        
+        broadcastToClients(JSON.stringify(connectionStats));
       }
-    }, 5000); // Every 5 seconds
+    }, 10000); // Every 10 seconds
 
     // Start the server
     const port = 5000;
