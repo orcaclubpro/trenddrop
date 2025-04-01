@@ -72,7 +72,7 @@ function App() {
   // Determine WebSocket URL based on current URL
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const wsHost = window.location.host;
-  // For Replit, ensure we're using the correct port
+  // Make sure to use the explicit /ws path for WebSocket connections
   const wsUrl = `${wsProtocol}//${wsHost}/ws`;
   
   // State to track application status

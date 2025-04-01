@@ -7,14 +7,16 @@ import { sql, eq, desc } from 'drizzle-orm';
 import { products, trends, regions, videos } from '@shared/schema.js';
 
 // Database connection settings
-const RECONNECT_INTERVAL = 60 * 1000; // 1 minute
+const RECONNECT_INTERVAL = 60 * 1000; // 1 minute 
 const MAX_RETRIES = 10;
+const RETRY_DELAY = 10 * 60 * 1000; // 10 minutes in milliseconds
 
 // Database state
 let db: ReturnType<typeof drizzle> | null = null;
 let databaseInitialized = false;
 let databaseConnecting = false;
 let lastConnectionAttempt = 0;
+let connectionRetries = 0; // Track connection retry attempts
 
 // Export the database instance
 export { db };
@@ -254,7 +256,34 @@ export async function initializeDatabase(): Promise<boolean> {
   lastConnectionAttempt = now;
   
   try {
-    console.log('[Database] Initializing database...');
+    // Increment retry counter
+    connectionRetries++;
+    
+    console.log(`[Database] Initializing database (attempt ${connectionRetries} of ${MAX_RETRIES})...`);
+    
+    // Show retry notice if this is a retry attempt
+    if (connectionRetries > 1) {
+      console.log(`[Database] Retrying connection after previous failure. Will retry ${MAX_RETRIES - connectionRetries} more times if needed.`);
+      
+      // Broadcast retry status to WebSocket clients if available
+      if ((global as any).wsClients) {
+        const retryMessage = JSON.stringify({
+          type: 'database_status',
+          status: 'retrying',
+          attempt: connectionRetries,
+          maxRetries: MAX_RETRIES,
+          timestamp: new Date().toISOString(),
+          message: `Retrying database connection (attempt ${connectionRetries}/${MAX_RETRIES})`,
+          nextRetryIn: connectionRetries < MAX_RETRIES ? RETRY_DELAY / 1000 : null
+        });
+        
+        ((global as any).wsClients as Set<WebSocket>).forEach(client => {
+          if (client.readyState === 1) { // WebSocket.OPEN
+            client.send(retryMessage);
+          }
+        });
+      }
+    }
     
     // Try local database first if DATABASE_URL environment variable is not set
     if (!process.env.DATABASE_URL) {
@@ -284,6 +313,7 @@ export async function initializeDatabase(): Promise<boolean> {
         max: 10, // Maximum pool size
         idle_timeout: 20, // Timeout after 20 seconds of inactivity
         prepare: false, // Don't prepare statements (can cause issues with some admin tasks)
+        connect_timeout: 10, // 10 second connection timeout
       });
       db = drizzle(client, { schema });
     }
@@ -291,6 +321,9 @@ export async function initializeDatabase(): Promise<boolean> {
     // Test connection
     console.log('[Database] Testing connection...');
     await db.execute(sql`SELECT 1`);
+    
+    // Connection successful, reset retry counter
+    connectionRetries = 0;
     
     // Check if tables exist, if not create them
     const tablesExist = await checkTablesExist(db);
@@ -370,10 +403,77 @@ export async function initializeDatabase(): Promise<boolean> {
     
     databaseInitialized = true;
     console.log('[Database] Database initialization completed successfully');
+    
+    // Broadcast success to WebSocket clients if available
+    if ((global as any).wsClients) {
+      const successMessage = JSON.stringify({
+        type: 'database_status',
+        status: 'connected',
+        timestamp: new Date().toISOString(),
+        message: 'Database connected and initialized successfully'
+      });
+      
+      ((global as any).wsClients as Set<WebSocket>).forEach(client => {
+        if (client.readyState === 1) { // WebSocket.OPEN
+          client.send(successMessage);
+        }
+      });
+    }
   } catch (error) {
     console.error('[Database] Error initializing database:', error);
     db = null;
     databaseInitialized = false;
+    
+    // Set up a retry if we haven't reached the maximum
+    if (connectionRetries < MAX_RETRIES) {
+      const retryDelayMs = RETRY_DELAY;
+      console.log(`[Database] Will retry in ${retryDelayMs / 1000 / 60} minutes (attempt ${connectionRetries} of ${MAX_RETRIES})`);
+      
+      // Schedule the next retry
+      setTimeout(() => {
+        console.log('[Database] Retry timeout elapsed, attempting reconnection...');
+        initializeDatabase();
+      }, retryDelayMs);
+      
+      // Broadcast retry info to WebSocket clients if available
+      if ((global as any).wsClients) {
+        const retryMessage = JSON.stringify({
+          type: 'database_status',
+          status: 'retry_scheduled',
+          attempt: connectionRetries,
+          maxRetries: MAX_RETRIES,
+          timestamp: new Date().toISOString(),
+          message: `Database connection failed, will retry in ${retryDelayMs / 1000 / 60} minutes`,
+          error: String(error),
+          nextRetryIn: retryDelayMs / 1000
+        });
+        
+        ((global as any).wsClients as Set<WebSocket>).forEach(client => {
+          if (client.readyState === 1) { // WebSocket.OPEN
+            client.send(retryMessage);
+          }
+        });
+      }
+    } else {
+      console.error(`[Database] Maximum retry attempts (${MAX_RETRIES}) reached. Giving up.`);
+      
+      // Broadcast failure to WebSocket clients if available
+      if ((global as any).wsClients) {
+        const failureMessage = JSON.stringify({
+          type: 'database_status',
+          status: 'failed',
+          timestamp: new Date().toISOString(),
+          message: `Database connection failed after ${MAX_RETRIES} attempts`,
+          error: String(error)
+        });
+        
+        ((global as any).wsClients as Set<WebSocket>).forEach(client => {
+          if (client.readyState === 1) { // WebSocket.OPEN
+            client.send(failureMessage);
+          }
+        });
+      }
+    }
   } finally {
     databaseConnecting = false;
   }

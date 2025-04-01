@@ -217,17 +217,24 @@ export class AgentService {
             productsFound: products.length
           });
           
-          // Insert new product with conflict handling
+          // Insert new product with enhanced conflict handling
           const result = await db.insert(schema.products)
             .values(product)
             .onConflictDoUpdate({
               target: schema.products.name,
               set: {
+                // Update trend-related metrics that change over time
                 trendScore: product.trendScore,
                 engagementRate: product.engagementRate,
                 salesVelocity: product.salesVelocity,
                 searchVolume: product.searchVolume,
                 geographicSpread: product.geographicSpread,
+                // Update URLs if they were empty before
+                aliexpressUrl: sql`COALESCE(${schema.products.aliexpressUrl}, ${product.aliexpressUrl})`,
+                cjdropshippingUrl: sql`COALESCE(${schema.products.cjdropshippingUrl}, ${product.cjdropshippingUrl})`,
+                // Update image if it was empty before
+                imageUrl: sql`COALESCE(${schema.products.imageUrl}, ${product.imageUrl})`,
+                // Always update the timestamp
                 updatedAt: new Date()
               }
             })
@@ -313,18 +320,49 @@ export class AgentService {
       // Track product names we've already generated to avoid duplicates within this batch
       const generatedNames = new Set<string>();
       
-      // Retrieve existing product names from the database to prevent duplicates
+      // Retrieve existing product data from the database to prevent duplicates
       const db = databaseService.getDb();
       log('Querying existing products to avoid duplicates', 'agent');
       const existingProducts = await db.query.products.findMany({
         columns: {
-          name: true
+          id: true,
+          name: true,
+          category: true,
+          subcategory: true,
+          sourcePlatform: true,
+          aliexpressUrl: true,
+          cjdropshippingUrl: true
         }
       });
       
       // Create a set of existing product names for faster lookup
       const existingProductNames = new Set(existingProducts.map((p: { name: string }) => p.name));
+      
+      // Create a map of existing products by various identifiers for more comprehensive duplicate checking
+      const existingProductsByIdentifier = new Map<string, any>();
+      
+      // Index products by multiple identifiers
+      existingProducts.forEach((product: any) => {
+        // Index by name (lowercase for case-insensitive comparison)
+        existingProductsByIdentifier.set(product.name.toLowerCase(), product);
+        
+        // Index by URL if present (product might be the same but with different name)
+        if (product.aliexpressUrl) {
+          existingProductsByIdentifier.set(product.aliexpressUrl, product);
+        }
+        if (product.cjdropshippingUrl) {
+          existingProductsByIdentifier.set(product.cjdropshippingUrl, product);
+        }
+        
+        // Index by category+subcategory+name pattern to catch similar variants
+        if (product.category && product.subcategory) {
+          const categoryKey = `${product.category}:${product.subcategory}:${product.name.split(' ')[0]}`;
+          existingProductsByIdentifier.set(categoryKey, product);
+        }
+      });
+      
       log(`Found ${existingProductNames.size} existing products in database`, 'agent');
+      log(`Created ${existingProductsByIdentifier.size} lookup keys for duplicate detection`, 'agent');
       
       // Example: Scrape AliExpress trending products
       const response = await axios.get('https://www.aliexpress.com/category/201000001/electronics.html', {

@@ -38,21 +38,55 @@ async function initializeApp(retryCount = 0): Promise<void> {
       }
     };
     
-    log(`Attempting database initialization (attempt ${retryCount + 1})...`);
-    broadcastStatus('initializing', `Attempting database initialization (attempt ${retryCount + 1})...`);
+    log(`Attempting database initialization (attempt ${retryCount + 1} of ${MAX_RETRIES})...`);
+    broadcastStatus('initializing', `Attempting database initialization (attempt ${retryCount + 1} of ${MAX_RETRIES})...`);
     
-    const initialized = await databaseService.initialize();
+    try {
+      const initialized = await databaseService.initialize();
 
-    if (!initialized) {
-      const retryMsg = `Database initialization failed. Retrying in ${RETRY_INTERVAL / 1000 / 60} minutes...`;
-      log(retryMsg);
-      broadcastStatus('error', retryMsg);
+      if (!initialized) {
+        const retryMsg = `Database initialization failed. Retrying in ${RETRY_INTERVAL / 1000 / 60} minutes...`;
+        log(retryMsg);
+        broadcastStatus('error', retryMsg);
+        
+        if (retryCount < MAX_RETRIES) {
+          // Send more detailed status to clients with retry countdown
+          const retryStatusMsg = JSON.stringify({
+            type: 'database_status',
+            status: 'retry_scheduled',
+            timestamp: new Date().toISOString(),
+            message: `Database connection failed (attempt ${retryCount + 1}/${MAX_RETRIES}). Will retry in ${RETRY_INTERVAL / 1000 / 60} minutes.`,
+            retryIn: RETRY_INTERVAL / 1000,
+            attempt: retryCount + 1,
+            maxRetries: MAX_RETRIES
+          });
+          
+          if ((global as any).wsClients) {
+            ((global as any).wsClients as Set<WebSocket>).forEach(client => {
+              if (client.readyState === WebSocket.OPEN) {
+                client.send(retryStatusMsg);
+              }
+            });
+          }
+          
+          setTimeout(() => initializeApp(retryCount + 1), RETRY_INTERVAL);
+          return;
+        } else {
+          throw new Error("Max database initialization retries reached.");
+        }
+      }
+    } catch (error) {
+      log(`Database initialization error: ${error}`);
+      broadcastStatus('error', `Database error: ${error}`);
       
       if (retryCount < MAX_RETRIES) {
+        const retryMsg = `Database error occurred. Retrying in ${RETRY_INTERVAL / 1000 / 60} minutes... (${retryCount + 1}/${MAX_RETRIES})`;
+        log(retryMsg);
+        
         setTimeout(() => initializeApp(retryCount + 1), RETRY_INTERVAL);
         return;
       } else {
-        throw new Error("Max database initialization retries reached.");
+        throw new Error(`Max database initialization retries reached. Last error: ${error}`);
       }
     }
 

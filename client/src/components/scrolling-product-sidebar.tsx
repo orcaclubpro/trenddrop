@@ -33,10 +33,11 @@ export default function ScrollingProductSidebar({ productId, onClose }: Scrollin
   const queryClient = useQueryClient();
   const [minimized, setMinimized] = useState(false);
   const [activeSection, setActiveSection] = useState<string>('overview');
+  const [animating, setAnimating] = useState(false);
   
   // Determine WebSocket URL based on current URL
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${wsProtocol}//${window.location.host}`;
+  const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
   
   // Use WebSocket hook for real-time updates
   const { messages } = useWebSocket(wsUrl);
@@ -50,6 +51,17 @@ export default function ScrollingProductSidebar({ productId, onClose }: Scrollin
     queryKey: [`/api/products/${productId}`],
     enabled: productId !== null,
   });
+  
+  // Animation effect when toggling minimized state
+  useEffect(() => {
+    if (minimized !== undefined) {
+      setAnimating(true);
+      const timer = setTimeout(() => {
+        setAnimating(false);
+      }, 300); // Match duration with CSS transition
+      return () => clearTimeout(timer);
+    }
+  }, [minimized]);
   
   // Listen for WebSocket messages for real-time updates
   useEffect(() => {

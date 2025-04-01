@@ -25,10 +25,18 @@ export default function ProductList({
   
   // Determine WebSocket URL based on current URL
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${wsProtocol}//${window.location.host}`;
+  // Make sure to use the explicit /ws path for WebSocket connections
+  const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
   
-  // Use WebSocket hook for real-time updates
-  const { messages } = useWebSocket(wsUrl);
+  // Use WebSocket hook for real-time updates with error handling
+  const { messages, status } = useWebSocket(wsUrl);
+  
+  // Reconnect WebSocket if connection fails
+  useEffect(() => {
+    if (status === 'error' || status === 'closed') {
+      console.log('WebSocket connection failed or closed, will reconnect automatically');
+    }
+  }, [status]);
   
   // Reset pagination when filters change
   useEffect(() => {
@@ -188,16 +196,16 @@ export default function ProductList({
                   ${product.priceRangeLow.toFixed(2)} - ${product.priceRangeHigh.toFixed(2)}
                 </div>
                 <div className="flex items-center text-xs text-primary-600 dark:text-primary-400 mt-1">
-                  {product.supplierUrl ? (
+                  {product.aliexpressUrl ? (
                     <a 
-                      href={product.supplierUrl}
+                      href={product.aliexpressUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-primary-600 dark:text-primary-400 hover:underline"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <i className="ri-external-link-line mr-1"></i> 
-                      Supplier
+                      AliExpress
                     </a>
                   ) : (
                     <>
