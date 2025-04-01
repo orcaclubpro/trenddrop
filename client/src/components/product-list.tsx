@@ -119,27 +119,27 @@ export default function ProductList({
   };
   
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-      <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-        <h3 className="font-medium">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-primary-100 dark:border-primary-900/50 overflow-hidden">
+      <div className="p-4 border-b border-primary-100 dark:border-primary-900/50 flex justify-between items-center bg-primary-50/50 dark:bg-primary-950/30">
+        <h3 className="font-medium text-primary-800 dark:text-primary-200">
           Trending Products
           {isFetching && !isLoading && (
-            <span className="ml-2 text-xs text-primary-500">
+            <span className="ml-2 text-xs text-primary-500 animate-pulse">
               <i className="ri-refresh-line animate-spin"></i> Updating...
             </span>
           )}
         </h3>
         <div className="flex items-center gap-2">
-          <button className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
+          <button className="text-primary-600 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-200 w-8 h-8 flex items-center justify-center rounded-full hover:bg-primary-100/50 dark:hover:bg-primary-900/30 transition-colors">
             <i className="ri-search-line"></i>
           </button>
-          <button className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
+          <button className="text-primary-600 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-200 w-8 h-8 flex items-center justify-center rounded-full hover:bg-primary-100/50 dark:hover:bg-primary-900/30 transition-colors">
             <i className="ri-filter-3-line"></i>
           </button>
         </div>
       </div>
       
-      <div className="divide-y divide-gray-200 dark:divide-gray-700">
+      <div className="divide-y divide-primary-100 dark:divide-primary-900/30">
         {isLoading ? (
           // Loading skeleton
           Array(5).fill(0).map((_, index) => (
@@ -160,17 +160,17 @@ export default function ProductList({
           data?.products.map(product => (
             <div 
               key={product.id}
-              className="p-4 hover:bg-gray-50 dark:hover:bg-gray-750 cursor-pointer flex items-center gap-4" 
+              className="p-4 hover:bg-primary-50/50 dark:hover:bg-primary-950/10 cursor-pointer flex items-center gap-4 transition-colors" 
               onClick={() => onSelectProduct(product)}
             >
               <TrendScoreRing score={product.trendScore} />
               
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <h4 className="font-medium text-sm truncate">{product.name}</h4>
+                  <h4 className="font-medium text-sm truncate text-primary-900 dark:text-primary-100">{product.name}</h4>
                   {renderCategoryBadge(product.category)}
                 </div>
-                <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 mt-1">
+                <div className="flex items-center text-xs text-primary-600 dark:text-primary-400 mt-1">
                   <span className="flex items-center">
                     <i className="ri-line-chart-line mr-1"></i> 
                     +{product.engagementRate * 6}% TikTok
@@ -184,10 +184,10 @@ export default function ProductList({
               </div>
               
               <div className="flex flex-col items-end">
-                <div className="text-sm font-medium">
+                <div className="text-sm font-medium text-primary-900 dark:text-primary-100">
                   ${product.priceRangeLow.toFixed(2)} - ${product.priceRangeHigh.toFixed(2)}
                 </div>
-                <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 mt-1">
+                <div className="flex items-center text-xs text-primary-600 dark:text-primary-400 mt-1">
                   {product.supplierUrl ? (
                     <a 
                       href={product.supplierUrl}
@@ -212,8 +212,8 @@ export default function ProductList({
         )}
       </div>
       
-      <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center">
-        <div className="text-sm text-gray-500 dark:text-gray-400">
+      <div className="p-4 border-t border-primary-100 dark:border-primary-900/50 flex justify-between items-center bg-primary-50/50 dark:bg-primary-950/30">
+        <div className="text-sm text-primary-600 dark:text-primary-400">
           {isLoading 
             ? "Loading products..." 
             : `Showing ${data?.products.length || 0} of ${data?.total || 0} products`
@@ -222,10 +222,10 @@ export default function ProductList({
         
         <div className="flex items-center gap-1">
           <button 
-            className={`w-8 h-8 flex items-center justify-center rounded ${
+            className={`w-8 h-8 flex items-center justify-center rounded-full ${
               page > 1
-                ? "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
-                : "text-gray-300 dark:text-gray-600 cursor-not-allowed"
+                ? "text-primary-600 dark:text-primary-400 hover:bg-primary-100 dark:hover:bg-primary-900/30"
+                : "text-primary-300 dark:text-primary-800 cursor-not-allowed"
             }`}
             onClick={handlePrevPage}
             disabled={page <= 1}
@@ -236,10 +236,10 @@ export default function ProductList({
           {data?.totalPages && Array.from({ length: Math.min(data.totalPages, 3) }).map((_, idx) => (
             <button 
               key={idx}
-              className={`w-8 h-8 flex items-center justify-center rounded ${
+              className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${
                 page === idx + 1
-                  ? "bg-primary-50 dark:bg-primary-900/50 text-primary-600 dark:text-primary-400"
-                  : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  ? "bg-primary text-white dark:bg-primary dark:text-white"
+                  : "text-primary-600 dark:text-primary-400 hover:bg-primary-100 dark:hover:bg-primary-900/30"
               }`}
               onClick={() => setPage(idx + 1)}
             >
@@ -248,10 +248,10 @@ export default function ProductList({
           ))}
           
           <button 
-            className={`w-8 h-8 flex items-center justify-center rounded ${
+            className={`w-8 h-8 flex items-center justify-center rounded-full ${
               data && page < data.totalPages
-                ? "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
-                : "text-gray-300 dark:text-gray-600 cursor-not-allowed"
+                ? "text-primary-600 dark:text-primary-400 hover:bg-primary-100 dark:hover:bg-primary-900/30"
+                : "text-primary-300 dark:text-primary-800 cursor-not-allowed"
             }`}
             onClick={handleNextPage}
             disabled={!data || page >= data.totalPages}

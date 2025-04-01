@@ -1,9 +1,10 @@
+
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Product } from "@shared/schema";
+import { Product, ProductWithDetails } from "@shared/schema";
 import FilterBar from "@/components/filter-bar";
 import ProductList from "@/components/product-list";
-import ProductDetail from "@/components/product-detail";
+import ProductDetailDialog from "@/components/product-detail-dialog";
 
 export default function TrendingProducts() {
   const [filters, setFilters] = useState<{
@@ -13,6 +14,7 @@ export default function TrendingProducts() {
   }>({});
   
   const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
+  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   
   const handleFilterChange = (newFilters: { 
@@ -21,8 +23,6 @@ export default function TrendingProducts() {
     region?: string 
   }) => {
     setFilters(newFilters);
-    // Reset selected product when filters change
-    setSelectedProductId(null);
   };
   
   const handleRefresh = () => {
@@ -44,11 +44,21 @@ export default function TrendingProducts() {
   
   const handleSelectProduct = (product: Product) => {
     setSelectedProductId(product.id);
+    setIsDetailDialogOpen(true);
   };
+
+  // Query for product details
+  const { 
+    data: productDetails,
+    isLoading,
+  } = useQuery<ProductWithDetails>({
+    queryKey: [`/api/products/${selectedProductId}`],
+    enabled: selectedProductId !== null,
+  });
   
   return (
-    <>
-      <header className="h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-6">
+    <div className="flex flex-col h-full">
+      <header className="h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-6 shadow-sm">
         <div className="flex items-center gap-2">
           <button className="md:hidden text-gray-500 dark:text-gray-400">
             <i className="ri-menu-line text-xl"></i>
@@ -73,20 +83,22 @@ export default function TrendingProducts() {
       />
       
       <div className="flex-1 p-6 bg-gray-50 dark:bg-gray-900 overflow-auto">
-        <div className="flex flex-col lg:flex-row gap-6">
-          <div className="flex-1">
-            <ProductList 
-              filters={filters} 
-              onSelectProduct={handleSelectProduct} 
-              isRefreshing={isRefreshing}
-            />
-          </div>
-          
-          <div className="lg:w-[450px]">
-            <ProductDetail productId={selectedProductId} />
-          </div>
+        <div className="container mx-auto">
+          <ProductList 
+            filters={filters} 
+            onSelectProduct={handleSelectProduct} 
+            isRefreshing={isRefreshing}
+          />
         </div>
       </div>
-    </>
+
+      <ProductDetailDialog
+        productId={selectedProductId}
+        isOpen={isDetailDialogOpen}
+        onOpenChange={setIsDetailDialogOpen}
+        productDetails={productDetails}
+        isLoading={isLoading}
+      />
+    </div>
   );
 }
