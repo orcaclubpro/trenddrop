@@ -10,7 +10,8 @@ import { neon } from '@neondatabase/serverless';
 import { Pool } from '@neondatabase/serverless';
 import * as schema from '../shared/schema.js';
 import { products, trends, regions, videos } from '../shared/schema.js';
-import { eq, and, like, gt, lt, gte, lte, sql } from 'drizzle-orm';
+import { eq, and, like, gt, lt, gte, lte } from 'drizzle-orm';
+import { sql as drizzleSql } from 'drizzle-orm';
 
 // Initialize file paths
 const __filename = fileURLToPath(import.meta.url);
@@ -41,17 +42,20 @@ app.use(
 );
 
 // Database connection
-let dbConnection;
-if (process.env.DATABASE_URL) {
-  dbConnection = neon(process.env.DATABASE_URL);
-} else {
-  // Use in-memory SQLite (or other fallback) as needed
-  dbConnection = () => Promise.resolve({ rows: [] });
-}
-const db = drizzle(dbConnection);
+const sql = process.env.DATABASE_URL 
+  ? neon(process.env.DATABASE_URL)
+  : null;
+
+// Create Drizzle client
+const db = sql ? drizzle(sql) : null;
 
 // Create the HTTP server
 const server = createServer(app);
+
+// Redirect /trendtracker to the frontend SPA route
+app.get('/trendtracker', (req, res) => {
+  res.redirect('/');
+});
 
 // Root route - serve the frontend
 app.get('/', (req, res) => {
@@ -226,16 +230,25 @@ app.get('/', (req, res) => {
 // API Routes
 app.get('/api/dashboard', async (req, res) => {
   try {
+    if (!db) {
+      return res.json({
+        trendingProductsCount: 0,
+        averageTrendScore: 0,
+        highPerformingCount: 0,
+        percentChange: 0
+      });
+    }
+    
     // Get total trending products count
-    const productsCount = await db.select({ count: sql`count(*)` }).from(products);
+    const productsCount = await db.select({ count: drizzleSql`count(*)` }).from(products);
     const trendingProductsCount = productsCount[0]?.count || 0;
     
     // Get average trend score
-    const avgScoreResult = await db.select({ avg: sql`avg(trend_score)` }).from(products);
+    const avgScoreResult = await db.select({ avg: drizzleSql`avg(trend_score)` }).from(products);
     const averageTrendScore = Math.round(Number(avgScoreResult[0]?.avg || 0));
     
     // Get high-performing products (trend score > 80)
-    const highPerforming = await db.select({ count: sql`count(*)` })
+    const highPerforming = await db.select({ count: drizzleSql`count(*)` })
       .from(products)
       .where(gte(products.trendScore, 80));
     const highPerformingCount = highPerforming[0]?.count || 0;
@@ -257,6 +270,10 @@ app.get('/api/dashboard', async (req, res) => {
 
 app.get('/api/products', async (req, res) => {
   try {
+    if (!db) {
+      return res.json({ products: [] });
+    }
+    
     const { trendScore, category, region } = req.query;
     let query = db.select().from(products);
     
@@ -282,6 +299,10 @@ app.get('/api/products', async (req, res) => {
 
 app.get('/api/products/:id', async (req, res) => {
   try {
+    if (!db) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+    
     const { id } = req.params;
     const product = await db.select().from(products).where(eq(products.id, Number(id))).limit(1);
     
@@ -312,6 +333,10 @@ app.get('/api/products/:id', async (req, res) => {
 
 app.get('/api/categories', async (req, res) => {
   try {
+    if (!db) {
+      return res.json([]);
+    }
+    
     const categoriesResult = await db.select({ category: products.category })
       .from(products)
       .groupBy(products.category);
@@ -326,6 +351,10 @@ app.get('/api/categories', async (req, res) => {
 
 app.get('/api/regions', async (req, res) => {
   try {
+    if (!db) {
+      return res.json([]);
+    }
+    
     const regionsResult = await db.select({ country: regions.country })
       .from(regions)
       .groupBy(regions.country);

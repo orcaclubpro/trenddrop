@@ -31,6 +31,11 @@ function Router() {
           <Dashboard />
         </Layout>
       )} />
+      <Route path="/trendtracker" component={() => (
+        <Layout>
+          <Dashboard />
+        </Layout>
+      )} />
       <Route path="/trending-products" component={() => (
         <Layout>
           <TrendingProducts />
