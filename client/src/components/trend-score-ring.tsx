@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import React, { useMemo } from 'react';
+import { TREND_SCORE_COLORS } from '../lib/constants';
 
 interface TrendScoreRingProps {
   score: number;
@@ -9,48 +10,66 @@ interface TrendScoreRingProps {
 
 export default function TrendScoreRing({ 
   score, 
-  size = 50, 
-  thickness = 6,
+  size = 60, 
+  thickness = 8,
   className = ""
 }: TrendScoreRingProps) {
-  const [color, setColor] = useState("rgb(79, 70, 229)"); // Default primary color
   
-  useEffect(() => {
-    // Set color based on score
-    if (score >= 90) {
-      setColor("rgb(16, 185, 129)"); // Green for excellent scores
-    } else if (score >= 80) {
-      setColor("rgb(79, 70, 229)"); // Purple/indigo for good scores
-    } else if (score >= 70) {
-      setColor("rgb(245, 158, 11)"); // Yellow/amber for average scores
-    } else {
-      setColor("rgb(220, 38, 38)"); // Red for below average scores
-    }
+  // Calculate dimensions
+  const center = size / 2;
+  const radius = center - thickness / 2;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (score / 100) * circumference;
+  
+  // Determine color based on score
+  const ringColor = useMemo(() => {
+    if (score >= 90) return TREND_SCORE_COLORS.excellent;
+    if (score >= 80) return TREND_SCORE_COLORS.good;
+    if (score >= 70) return TREND_SCORE_COLORS.average;
+    if (score >= 60) return TREND_SCORE_COLORS.fair;
+    return TREND_SCORE_COLORS.poor;
   }, [score]);
   
-  const percentage = `${score}%`;
-  
   return (
-    <div 
-      className={`relative ${className}`} 
-      style={{ 
-        width: `${size}px`, 
-        height: `${size}px`,
-        "--percentage": percentage,
-        "--thickness": `${thickness}px`,
-        "--primary-color": color
-      } as React.CSSProperties}
-    >
-      <div className="absolute inset-0 rounded-full bg-conic-gradient" 
-           style={{
-              background: `conic-gradient(${color} ${percentage}, #e5e7eb 0)`,
-              maskImage: `radial-gradient(transparent calc(50% - ${thickness}px), #000 calc(50% - ${thickness}px + 1px))`,
-              WebkitMaskImage: `radial-gradient(transparent calc(50% - ${thickness}px), #000 calc(50% - ${thickness}px + 1px))`,
-           }}
-      ></div>
-      <div className="absolute inset-0 flex items-center justify-center text-sm font-medium">
-        {score}
-      </div>
+    <div className={`relative flex items-center justify-center ${className}`}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        {/* Background circle */}
+        <circle
+          cx={center}
+          cy={center}
+          r={radius}
+          fill="transparent"
+          stroke="#e5e7eb"
+          strokeWidth={thickness}
+        />
+        
+        {/* Progress circle */}
+        <circle
+          cx={center}
+          cy={center}
+          r={radius}
+          fill="transparent"
+          stroke={ringColor}
+          strokeWidth={thickness}
+          strokeDasharray={circumference}
+          strokeDashoffset={strokeDashoffset}
+          strokeLinecap="round"
+          transform={`rotate(-90 ${center} ${center})`}
+        />
+        
+        {/* Score text */}
+        <text
+          x={center}
+          y={center}
+          fill="currentColor"
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fontSize={size * 0.26}
+          fontWeight="bold"
+        >
+          {score}
+        </text>
+      </svg>
     </div>
   );
 }

@@ -5,13 +5,11 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { createServer } from 'http';
-import { drizzle } from 'drizzle-orm/neon-serverless';
-import { neon } from '@neondatabase/serverless';
-import { Pool } from '@neondatabase/serverless';
 import * as schema from '../shared/schema.js';
 import { products, trends, regions, videos } from '../shared/schema.js';
 import { eq, and, like, gt, lt, gte, lte } from 'drizzle-orm';
 import { sql as drizzleSql } from 'drizzle-orm';
+import { db, initializeDatabase, startDatabaseReconnectionLoop } from './initialize.js';
 
 // Initialize file paths
 const __filename = fileURLToPath(import.meta.url);
@@ -41,13 +39,8 @@ app.use(
   })
 );
 
-// Database connection
-const sql = process.env.DATABASE_URL 
-  ? neon(process.env.DATABASE_URL)
-  : null;
-
-// Create Drizzle client
-const db = sql ? drizzle(sql) : null;
+// Start database connection and reconnection loop
+startDatabaseReconnectionLoop();
 
 // Create the HTTP server
 const server = createServer(app);
@@ -374,6 +367,7 @@ let scraperMockStatus = {
   total_found: 0,
   start_time: null as string | null,
   message: 'Scraper service in development mode',
+  database_status: false,
 };
 
 let progressInterval: NodeJS.Timeout | null = null;
@@ -381,6 +375,19 @@ let progressInterval: NodeJS.Timeout | null = null;
 // API endpoints to trigger the Python backend scraper agent
 app.post('/api/scraper/start', async (req, res) => {
   try {
+    // Check if database is initialized
+    if (!db) {
+      const initialized = await initializeDatabase();
+      if (!initialized) {
+        return res.status(503).json({
+          error: 'Database not available',
+          message: 'The database is currently unavailable. The system will automatically retry connecting.',
+          running: false,
+          database_status: false
+        });
+      }
+    }
+    
     const { count = 1000 } = req.body;
     
     // Try to call the Python FastAPI endpoint
@@ -419,6 +426,7 @@ app.post('/api/scraper/start', async (req, res) => {
       total_found: 0,
       start_time: new Date().toISOString(),
       message: 'Scraper service running in development mode',
+      database_status: db !== null
     };
     
     // Simulate progress updates
@@ -446,18 +454,30 @@ app.post('/api/scraper/start', async (req, res) => {
       message: 'Scraper job started successfully in development mode',
       running: true,
       job_id: `dev-${Date.now()}`,
+      database_status: true
     });
   } catch (error) {
     console.error('Error starting scraper:', error);
     return res.status(500).json({ 
       error: 'Failed to start scraper job',
-      message: 'The TrendDrop Trendtracker agent is temporarily unavailable. Please try again later.' 
+      message: 'The TrendDrop Trendtracker agent is temporarily unavailable. Please try again later.',
+      database_status: db !== null
     });
   }
 });
 
 app.get('/api/scraper/status', async (req, res) => {
   try {
+    // Update database status in scraper mock status
+    scraperMockStatus.database_status = db !== null;
+    
+    // Try to initialize database if not connected
+    if (!db) {
+      initializeDatabase().catch(() => {
+        console.error('Failed to initialize database during status check');
+      });
+    }
+    
     // Try to call the Python FastAPI endpoint
     try {
       // Create a timeout promise
@@ -471,7 +491,10 @@ app.get('/api/scraper/status', async (req, res) => {
       
       if (response.ok) {
         const data = await response.json();
-        return res.json(data);
+        return res.json({
+          ...data,
+          database_status: db !== null
+        });
       }
     } catch (e) {
       console.log('Python backend not available, using development mode');
@@ -486,7 +509,8 @@ app.get('/api/scraper/status', async (req, res) => {
       message: 'The TrendDrop Trendtracker agent status service is temporarily unavailable.',
       running: false,
       progress: 0,
-      total_found: 0 
+      total_found: 0,
+      database_status: db !== null
     });
   }
 });

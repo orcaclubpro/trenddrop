@@ -20,6 +20,7 @@ import MetricsSummary from "@/components/metrics-summary";
 import FilterBar from "@/components/filter-bar";
 import ProductList from "@/components/product-list";
 import ProductDetail from "@/components/product-detail";
+import ProductDashboard from "@/components/product-dashboard";
 
 // Type definition for scraper status response
 interface ScraperStatus {
@@ -56,6 +57,21 @@ export default function Dashboard() {
       }
     },
     refetchInterval: 5000, // Refetch every 5 seconds if the scraper is running
+  });
+  
+  // Query to get products
+  const { data: productsData, isLoading: isLoadingProducts } = useQuery({
+    queryKey: ['products', filters],
+    queryFn: async () => {
+      try {
+        const response = await apiRequest('/api/products');
+        return response;
+      } catch (error) {
+        console.error('Failed to fetch products:', error);
+        return { products: [] };
+      }
+    },
+    refetchInterval: 30000, // Refetch every 30 seconds
   });
   
   // Format time remaining based on progress
@@ -238,10 +254,11 @@ export default function Dashboard() {
             
             <div className="flex flex-col lg:flex-row gap-6">
               <div className="flex-1">
-                <ProductList 
-                  filters={filters} 
+                <ProductDashboard 
+                  products={(productsData?.products || [])} 
                   onSelectProduct={handleSelectProduct} 
                   isRefreshing={isRefreshing}
+                  onRefresh={handleRefresh}
                 />
               </div>
               

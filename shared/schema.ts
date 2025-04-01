@@ -30,6 +30,11 @@ export const products = pgTable("products", {
   salesVelocity: integer("sales_velocity").notNull(),
   searchVolume: integer("search_volume").notNull(),
   geographicSpread: integer("geographic_spread").notNull(),
+  imageUrl: text("image_url"),
+  description: text("description"),
+  sourcePlatform: text("source_platform"),
+  aliexpressUrl: text("aliexpress_url"),
+  cjdropshippingUrl: text("cjdropshipping_url"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

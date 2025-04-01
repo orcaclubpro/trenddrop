@@ -45,6 +45,7 @@ export const TREND_SCORE_COLORS = {
   excellent: "rgb(16, 185, 129)", // Green
   good: "rgb(79, 70, 229)",       // Indigo
   average: "rgb(245, 158, 11)",   // Amber
+  fair: "rgb(234, 179, 8)",       // Yellow
   poor: "rgb(220, 38, 38)"        // Red
 };
 

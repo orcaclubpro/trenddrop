@@ -1,28 +1,19 @@
 #!/bin/bash
 
-# Start script for TrendDrop - Trendtracker
-# This script starts both the Express server and the Python FastAPI backend
+# Exit on any error
+set -e
 
-# Stop any running Python processes
-echo "Stopping any running Python processes..."
-pkill -f "python -m uvicorn" || true
+echo "Starting TrendDrop Trendtracker..."
 
-# Set environment variables
-export PYTHON_API_PORT=8000
-export MAX_PRODUCTS=1000
+# Check if PostgreSQL environment variables are set
+if [ -z "$DATABASE_URL" ]; then
+  echo "WARNING: DATABASE_URL environment variable is not set."
+  echo "The application will start without database access."
+  echo "Please configure the database connection before starting the agent."
+fi
 
-# Initialize the database
-echo "Initializing database..."
-python -m server.init_db
-
-# Start the Python FastAPI backend in the background
-echo "Starting Python FastAPI backend..."
-cd "$(dirname "$0")" && python -m server.main &
-
-# Wait for the Python API to start
-echo "Waiting for Python API to start..."
-sleep 3
-
-# Start the Express server
-echo "Starting Express server..."
+# Start the Express.js server (will attempt to connect to the database)
+echo "Starting server..."
 npm run dev
+
+# The server will be running in the foreground
