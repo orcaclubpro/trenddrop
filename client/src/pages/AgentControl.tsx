@@ -1,387 +1,438 @@
 import { useState, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { 
   Bot, 
-  Play, 
-  Pause, 
-  RefreshCw,
-  Database, 
   Server, 
-  Activity,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  AlertCircle
+  Database, 
+  Globe, 
+  Wifi, 
+  Power, 
+  Play, 
+  Download,
+  ThumbsUp,
+  ThumbsDown,
+  AlertCircle,
+  Check,
+  RefreshCcw,
 } from 'lucide-react';
-import { API, WS_MESSAGE_TYPES } from '@/lib/constants';
 import { formatRelativeTime } from '@/lib/utils';
 import { useWebSocket } from '@/hooks/use-websocket';
+import { WS_MESSAGE_TYPES } from '@/lib/constants';
+import { LoadingScreen } from '@/components/ui/loading-screen';
 import { useToast } from '@/hooks/use-toast';
 
-import { Button } from '@/components/ui/button';
-
-function AgentControl() {
-  const [agentStatus, setAgentStatus] = useState<any>(null);
-  const [aiAgentStatus, setAIAgentStatus] = useState<any>(null);
-  const [systemStatus, setSystemStatus] = useState<any>(null);
-  const [latestLog, setLatestLog] = useState<string | null>(null);
+export default function AgentControl() {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
-  
-  // Fetch status from API
-  const { data: healthData, isLoading } = useQuery({
-    queryKey: [API.HEALTH],
-    refetchInterval: 10000, // Refresh every 10 seconds
-  });
-  
-  // Initialize AI Agent
-  const initializeMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch(API.AI_AGENT.INITIALIZE, {
+  const [isLoading, setIsLoading] = useState(true);
+  const [isInitializing, setIsInitializing] = useState(false);
+  const [isStartingAgent, setIsStartingAgent] = useState(false);
+  const [isStoppingAgent, setIsStoppingAgent] = useState(false);
+
+  // Initialize agent action
+  const handleInitialize = async () => {
+    try {
+      setIsInitializing(true);
+      const response = await fetch('/api/agent/initialize', { 
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
       });
-      return res.json();
-    },
-    onSuccess: (data) => {
+      
+      if (!response.ok) {
+        throw new Error('Failed to initialize agent');
+      }
+      
+      const data = await response.json();
       toast({
-        title: 'AI Agent Initialized',
-        description: 'The AI agent has been successfully initialized.',
+        title: 'Agent Initialized',
+        description: data.message || 'Agent system has been initialized',
       });
-      // Refresh status
-      queryClient.invalidateQueries({ queryKey: [API.HEALTH] });
-      setAIAgentStatus(data.status);
-    },
-    onError: (error) => {
+
+      // Refresh status after initialization
+      setTimeout(fetchAgentStatus, 1000);
+    } catch (error) {
+      console.error('Error initializing agent:', error);
       toast({
         title: 'Initialization Failed',
-        description: `Failed to initialize AI agent: ${error}`,
+        description: 'Could not initialize the agent system',
         variant: 'destructive',
       });
-    },
-  });
-  
-  // Start AI Agent
-  const startMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch(API.AI_AGENT.START, {
+    } finally {
+      setIsInitializing(false);
+    }
+  };
+
+  // Start agent action
+  const handleStartAgent = async () => {
+    try {
+      setIsStartingAgent(true);
+      const response = await fetch('/api/agent/start', { 
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
       });
-      return res.json();
-    },
-    onSuccess: (data) => {
+      
+      if (!response.ok) {
+        throw new Error('Failed to start agent');
+      }
+      
+      const data = await response.json();
       toast({
-        title: 'AI Agent Started',
-        description: 'The AI agent has started discovering trending products.',
+        title: 'Agent Started',
+        description: data.message || 'Agent system is now running',
       });
-      // Refresh status
-      queryClient.invalidateQueries({ queryKey: [API.HEALTH] });
-      setAIAgentStatus(data.status);
-    },
-    onError: (error) => {
+
+      // Refresh status after starting
+      setTimeout(fetchAgentStatus, 1000);
+    } catch (error) {
+      console.error('Error starting agent:', error);
       toast({
         title: 'Start Failed',
-        description: `Failed to start AI agent: ${error}`,
+        description: 'Could not start the agent system',
         variant: 'destructive',
       });
-    },
-  });
-  
-  // Stop AI Agent
-  const stopMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch(API.AI_AGENT.STOP, {
+    } finally {
+      setIsStartingAgent(false);
+    }
+  };
+
+  // Stop agent action
+  const handleStopAgent = async () => {
+    try {
+      setIsStoppingAgent(true);
+      const response = await fetch('/api/agent/stop', { 
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
       });
-      return res.json();
-    },
-    onSuccess: (data) => {
+      
+      if (!response.ok) {
+        throw new Error('Failed to stop agent');
+      }
+      
+      const data = await response.json();
       toast({
-        title: 'AI Agent Stopped',
-        description: 'The AI agent has been stopped.',
+        title: 'Agent Stopped',
+        description: data.message || 'Agent system has been stopped',
       });
-      // Refresh status
-      queryClient.invalidateQueries({ queryKey: [API.HEALTH] });
-      setAIAgentStatus(data.status);
-    },
-    onError: (error) => {
+
+      // Refresh status after stopping
+      setTimeout(fetchAgentStatus, 1000);
+    } catch (error) {
+      console.error('Error stopping agent:', error);
       toast({
         title: 'Stop Failed',
-        description: `Failed to stop AI agent: ${error}`,
+        description: 'Could not stop the agent system',
         variant: 'destructive',
       });
-    },
-  });
-  
-  // WebSocket for real-time updates
-  const { lastMessage } = useWebSocket({
-    onMessage: (message) => {
-      if (message.type === WS_MESSAGE_TYPES.AGENT_STATUS) {
-        setLatestLog(message.message || null);
-        if (message.status) {
-          setAIAgentStatus(message.status);
-        }
-      }
-    },
-  });
-  
-  // Update status when health data changes
-  useEffect(() => {
-    if (healthData) {
-      setAgentStatus(healthData.agent);
-      setAIAgentStatus(healthData.aiAgent);
-      setSystemStatus({
-        database: healthData.database,
-        websocket: healthData.websocket,
-      });
+    } finally {
+      setIsStoppingAgent(false);
     }
-  }, [healthData]);
-  
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-bold">AI Agent Control</h1>
-        <div className="flex items-center justify-center h-64">
-          <div className="flex flex-col items-center">
-            <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
-            <p className="mt-4 text-muted-foreground">Loading agent status...</p>
-          </div>
-        </div>
-      </div>
-    );
+  };
+
+  // WebSocket connection for real-time updates
+  const { isConnected, sendMessage } = useWebSocket({
+    onOpen: () => {
+      console.log('WebSocket connection established');
+      sendMessage({ type: 'client_connected', clientId: 'agent_control' });
+    },
+    onMessage: (message) => {
+      console.log('WebSocket message received:', message);
+      if (message.type === 'agent_status') {
+        setAgentStatus(prevStatus => ({
+          ...prevStatus,
+          ...message.data
+        }));
+      }
+    }
+  });
+
+  // Mock agent status
+  const [agentStatus, setAgentStatus] = useState({
+    agent: {
+      isInitialized: false,
+      isRunning: false,
+      status: 'stopped',
+      lastRun: null,
+      discoveredItems: 0,
+      version: '1.0.0'
+    },
+    aiAgent: {
+      isInitialized: false,
+      isRunning: false,
+      status: 'stopped',
+      lastRun: null
+    },
+    database: {
+      isConnected: false,
+      lastBackup: null,
+      recordCount: 0
+    },
+    websocket: {
+      isRunning: false,
+      connectedClients: 0
+    }
+  });
+
+  // Fetch agent status
+  const fetchAgentStatus = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch('/api/agent/status');
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch agent status');
+      }
+      
+      const data = await response.json();
+      setAgentStatus(data);
+    } catch (error) {
+      console.error('Error fetching agent status:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch agent status',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fetch status on component mount
+  useEffect(() => {
+    fetchAgentStatus();
+  }, []);
+
+  // Handle status refresh
+  const handleRefresh = () => {
+    fetchAgentStatus();
+  };
+
+  // Display loading screen while initial data is being fetched
+  if (isLoading && !agentStatus) {
+    return <LoadingScreen />;
   }
 
+  const agentRunning = agentStatus.agent.isRunning;
+  const agentInitialized = agentStatus.agent.isInitialized;
+  const aiAgentRunning = agentStatus.aiAgent.isRunning;
+  const aiAgentInitialized = agentStatus.aiAgent.isInitialized;
+  const databaseConnected = agentStatus.database.isConnected;
+  const websocketRunning = agentStatus.websocket.isRunning;
+
   return (
-    <div className="space-y-6 pb-8">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">AI Agent Control</h1>
-        <Button 
-          variant="outline" 
-          size="sm"
-          onClick={() => queryClient.invalidateQueries({ queryKey: [API.HEALTH] })}
-          className="flex items-center gap-1"
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Agent Control Center</h2>
+          <p className="text-muted-foreground">
+            Monitor and control the TrendDrop data collection agent
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          onClick={handleRefresh}
+          disabled={isLoading}
         >
-          <RefreshCw className="h-4 w-4" />
-          <span>Refresh</span>
+          <RefreshCcw className="mr-2 h-4 w-4" />
+          Refresh
         </Button>
       </div>
 
-      {/* Control Panel */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Agent Status Card */}
-        <div className="bg-card rounded-lg shadow-sm border p-6">
-          <div className="flex flex-col items-center text-center">
-            <div className="p-3 bg-primary/10 rounded-full mb-4">
-              <Bot className="h-8 w-8 text-primary" />
-            </div>
-            <h2 className="text-xl font-bold mb-1">AI Agent</h2>
-            <div className="flex items-center mb-4">
-              <StatusBadge status={aiAgentStatus?.status || 'unknown'} />
-            </div>
-            <p className="text-sm text-muted-foreground mb-6">
-              {aiAgentStatus?.isRunning 
-                ? 'AI Agent is actively discovering products and trends' 
-                : 'AI Agent is idle and ready to discover trending products'}
-            </p>
-            <div className="w-full space-y-2">
-              {!aiAgentStatus?.isRunning && (
-                <Button 
-                  className="w-full flex items-center justify-center gap-2"
-                  onClick={() => startMutation.mutate()}
-                  disabled={startMutation.isPending}
-                >
-                  <Play className="h-4 w-4" />
-                  <span>Start Agent</span>
-                </Button>
-              )}
-              
-              {aiAgentStatus?.isRunning && (
-                <Button 
-                  className="w-full flex items-center justify-center gap-2"
-                  variant="destructive"
-                  onClick={() => stopMutation.mutate()}
-                  disabled={stopMutation.isPending}
-                >
-                  <Pause className="h-4 w-4" />
-                  <span>Stop Agent</span>
-                </Button>
-              )}
-              
-              <Button 
-                className="w-full flex items-center justify-center gap-2"
-                variant="outline"
-                onClick={() => initializeMutation.mutate()}
-                disabled={initializeMutation.isPending}
-              >
-                <RefreshCw className="h-4 w-4" />
-                <span>Initialize</span>
-              </Button>
-            </div>
-          </div>
-        </div>
-        
-        {/* Agent Metrics */}
-        <div className="bg-card rounded-lg shadow-sm border p-6">
-          <h2 className="text-lg font-bold mb-4">Agent Metrics</h2>
-          
-          <div className="space-y-4">
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-sm text-muted-foreground">Products Found</span>
-                <span className="font-medium">{aiAgentStatus?.productsFound || 0}</span>
-              </div>
-              <div className="w-full bg-muted rounded-full h-2">
-                <div 
-                  className="bg-primary h-2 rounded-full" 
-                  style={{ width: `${Math.min((aiAgentStatus?.productsFound || 0) / 2, 100)}%` }}
-                ></div>
-              </div>
-            </div>
-            
-            <div className="pt-2">
-              <h3 className="text-sm font-medium mb-2">Model Availability</h3>
-              <div className="grid grid-cols-2 gap-2">
-                <ModelStatus name="OpenAI" isAvailable={aiAgentStatus?.openai} />
-                <ModelStatus name="LM Studio" isAvailable={aiAgentStatus?.lmstudio} />
-                <ModelStatus name="Grok" isAvailable={aiAgentStatus?.grok} />
-                <ModelStatus name="Local" isAvailable={true} />
-              </div>
-            </div>
-            
-            <div className="pt-2">
-              <h3 className="text-sm font-medium mb-2">Activity</h3>
-              <div className="text-sm">
-                {aiAgentStatus?.lastRun ? (
-                  <div className="flex items-center">
-                    <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
-                    <span>Last run: {formatRelativeTime(aiAgentStatus.lastRun)}</span>
-                  </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className={`border-l-4 ${agentRunning ? 'border-l-green-500' : 'border-l-gray-300'}`}>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex justify-between items-center text-base font-medium">
+              Agent Status
+              <Bot className={`h-4 w-4 ${agentRunning ? 'text-green-500' : 'text-muted-foreground'}`} />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex justify-between items-center">
+              <div className="font-medium">
+                {agentRunning ? (
+                  <span className="flex items-center text-green-500">
+                    <Check className="h-4 w-4 mr-1" /> Running
+                  </span>
                 ) : (
-                  <div className="text-muted-foreground">No recent activity</div>
+                  <span className="flex items-center text-muted-foreground">
+                    <Power className="h-4 w-4 mr-1" /> Stopped
+                  </span>
                 )}
               </div>
+              <div className="text-xs text-muted-foreground">
+                {agentStatus.agent.lastRun ? 
+                  `Last run: ${formatRelativeTime(new Date(agentStatus.agent.lastRun))}` : 
+                  'Never run'
+                }
+              </div>
             </div>
-          </div>
-        </div>
-        
-        {/* System Status */}
-        <div className="bg-card rounded-lg shadow-sm border p-6">
-          <h2 className="text-lg font-bold mb-4">System Status</h2>
+          </CardContent>
+        </Card>
+
+        <Card className={`border-l-4 ${aiAgentRunning ? 'border-l-blue-500' : 'border-l-gray-300'}`}>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex justify-between items-center text-base font-medium">
+              AI Agent Status
+              <Server className={`h-4 w-4 ${aiAgentRunning ? 'text-blue-500' : 'text-muted-foreground'}`} />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex justify-between items-center">
+              <div className="font-medium">
+                {aiAgentRunning ? (
+                  <span className="flex items-center text-blue-500">
+                    <Check className="h-4 w-4 mr-1" /> Running
+                  </span>
+                ) : (
+                  <span className="flex items-center text-muted-foreground">
+                    <Power className="h-4 w-4 mr-1" /> Stopped
+                  </span>
+                )}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {agentStatus.aiAgent.lastRun ? 
+                  `Last run: ${formatRelativeTime(new Date(agentStatus.aiAgent.lastRun))}` : 
+                  'Never run'
+                }
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className={`border-l-4 ${databaseConnected ? 'border-l-purple-500' : 'border-l-gray-300'}`}>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex justify-between items-center text-base font-medium">
+              Database Status
+              <Database className={`h-4 w-4 ${databaseConnected ? 'text-purple-500' : 'text-muted-foreground'}`} />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex justify-between items-center">
+              <div className="font-medium">
+                {databaseConnected ? (
+                  <span className="flex items-center text-purple-500">
+                    <Check className="h-4 w-4 mr-1" /> Connected
+                  </span>
+                ) : (
+                  <span className="flex items-center text-muted-foreground">
+                    <AlertCircle className="h-4 w-4 mr-1" /> Disconnected
+                  </span>
+                )}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {`${agentStatus.database.recordCount} records`}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className={`border-l-4 ${websocketRunning ? 'border-l-amber-500' : 'border-l-gray-300'}`}>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex justify-between items-center text-base font-medium">
+              WebSocket Status
+              <Wifi className={`h-4 w-4 ${websocketRunning ? 'text-amber-500' : 'text-muted-foreground'}`} />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex justify-between items-center">
+              <div className="font-medium">
+                {websocketRunning ? (
+                  <span className="flex items-center text-amber-500">
+                    <Check className="h-4 w-4 mr-1" /> Running
+                  </span>
+                ) : (
+                  <span className="flex items-center text-muted-foreground">
+                    <AlertCircle className="h-4 w-4 mr-1" /> Stopped
+                  </span>
+                )}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {`${agentStatus.websocket.connectedClients} clients connected`}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="md:col-span-1 space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Agent Controls</CardTitle>
+              <CardDescription>Manage data collection agent</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Button 
+                className="w-full" 
+                variant={agentInitialized ? 'outline' : 'default'}
+                onClick={handleInitialize}
+                disabled={isInitializing || agentInitialized}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                {isInitializing ? 'Initializing...' : 'Initialize Agent'}
+              </Button>
+              
+              <Button 
+                className="w-full" 
+                variant={agentRunning ? 'outline' : 'default'}
+                onClick={handleStartAgent}
+                disabled={isStartingAgent || agentRunning || !agentInitialized}
+              >
+                <Play className="mr-2 h-4 w-4" />
+                {isStartingAgent ? 'Starting...' : 'Start Agent'}
+              </Button>
+              
+              <Button 
+                className="w-full" 
+                variant="destructive"
+                onClick={handleStopAgent}
+                disabled={isStoppingAgent || !agentRunning}
+              >
+                <Power className="mr-2 h-4 w-4" />
+                {isStoppingAgent ? 'Stopping...' : 'Stop Agent'}
+              </Button>
+            </CardContent>
+          </Card>
           
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-md">
-              <div className="flex items-center">
-                <Database className="h-5 w-5 mr-2 text-primary" />
-                <span>Database</span>
+          <Card>
+            <CardHeader>
+              <CardTitle>Agent Statistics</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Discovered Items</span>
+                <span className="font-medium">{agentStatus.agent.discoveredItems}</span>
               </div>
-              <StatusBadge 
-                status={systemStatus?.database?.connected ? 'connected' : 'disconnected'} 
-              />
-            </div>
-            
-            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-md">
-              <div className="flex items-center">
-                <Server className="h-5 w-5 mr-2 text-primary" />
-                <span>API Server</span>
-              </div>
-              <StatusBadge status="connected" />
-            </div>
-            
-            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-md">
-              <div className="flex items-center">
-                <Activity className="h-5 w-5 mr-2 text-primary" />
-                <span>WebSocket</span>
-              </div>
-              <div className="flex items-center">
-                <StatusBadge status="connected" />
-                <span className="text-xs ml-2">
-                  {systemStatus?.websocket?.connections || 0} active
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Connection Status</span>
+                <span className={isConnected ? 'text-green-500' : 'text-red-500'}>
+                  {isConnected ? 'Connected' : 'Disconnected'}
                 </span>
               </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      {/* Activity Log */}
-      <div className="bg-card rounded-lg shadow-sm border overflow-hidden">
-        <div className="p-4 border-b flex justify-between items-center">
-          <h2 className="text-lg font-semibold">Activity Log</h2>
-          <div className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
-            Live Updates
-          </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Agent Version</span>
+                <span className="text-xs bg-secondary py-1 px-2 rounded-full">
+                  {agentStatus.agent.version}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
         </div>
         
-        <div className="p-4 max-h-64 overflow-y-auto">
-          {latestLog ? (
-            <div className="border-l-2 border-primary pl-3 py-1 mb-2 text-sm">
-              <p>{latestLog}</p>
-              <span className="text-xs text-muted-foreground">Just now</span>
+        <Card className="md:col-span-3">
+          <CardHeader>
+            <CardTitle>Agent Logs</CardTitle>
+            <CardDescription>Recent agent activity and events</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-80 bg-black/5 rounded-md p-4 overflow-y-auto font-mono text-xs">
+              {/* Agent log entries would appear here */}
+              <div className="text-muted-foreground italic flex items-center justify-center h-full">
+                No log entries available
+              </div>
             </div>
-          ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              <AlertCircle className="mx-auto h-8 w-8 mb-2" />
-              <p>No recent activity logs available</p>
-              <p className="text-xs mt-1">Start the agent to see activity logs here</p>
-            </div>
-          )}
-        </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
 }
-
-interface StatusBadgeProps {
-  status: string;
-}
-
-function StatusBadge({ status }: StatusBadgeProps) {
-  let bgColor = 'bg-muted';
-  let textColor = 'text-muted-foreground';
-  let Icon = AlertCircle;
-  
-  switch (status.toLowerCase()) {
-    case 'running':
-    case 'active':
-    case 'connected':
-      bgColor = 'bg-green-100 dark:bg-green-900/20';
-      textColor = 'text-green-700 dark:text-green-400';
-      Icon = CheckCircle2;
-      break;
-    case 'idle':
-    case 'stopped':
-      bgColor = 'bg-yellow-100 dark:bg-yellow-900/20';
-      textColor = 'text-yellow-700 dark:text-yellow-400';
-      Icon = Clock;
-      break;
-    case 'error':
-    case 'disconnected':
-    case 'failed':
-      bgColor = 'bg-red-100 dark:bg-red-900/20';
-      textColor = 'text-red-700 dark:text-red-400';
-      Icon = XCircle;
-      break;
-  }
-  
-  return (
-    <div className={`flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${bgColor} ${textColor}`}>
-      <Icon className="h-3 w-3 mr-1" />
-      <span>{status}</span>
-    </div>
-  );
-}
-
-interface ModelStatusProps {
-  name: string;
-  isAvailable: boolean;
-}
-
-function ModelStatus({ name, isAvailable }: ModelStatusProps) {
-  return (
-    <div className="flex items-center bg-muted/50 p-2 rounded">
-      <div className={`h-2 w-2 rounded-full mr-2 ${isAvailable ? 'bg-green-500' : 'bg-red-500'}`} />
-      <span className="text-xs">{name}</span>
-    </div>
-  );
-}
-
-export default AgentControl;

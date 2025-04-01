@@ -31,7 +31,11 @@ export const WS_MESSAGE_TYPES = {
   CLIENT_CONNECTED: 'client_connected',
   CLIENT_DISCONNECTED: 'client_disconnected',
   AGENT_STATUS: 'agent_status',
-  PRODUCT_UPDATED: 'product_updated'
+  PRODUCT_UPDATED: 'product_updated',
+  PRODUCT_UPDATE: 'product_update',
+  INITIALIZE: 'initialize',
+  START: 'start',
+  STOP: 'stop'
 };
 
 /**

@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { TREND_SCORE_RANGES } from "./constants";
 
 /**
  * Utility function to merge multiple class names with Tailwind classes
@@ -51,6 +52,13 @@ export function truncateString(str: string, length = 30): string {
   if (str.length <= length) return str;
   
   return `${str.substring(0, length)}...`;
+}
+
+/**
+ * Truncate function alias
+ */
+export function truncate(str: string, length = 30): string {
+  return truncateString(str, length);
 }
 
 /**
@@ -144,4 +152,51 @@ export function timeAgo(date: Date | string): string {
   }
   
   return Math.floor(seconds) + ' seconds ago';
+}
+
+/**
+ * Format a number as a percentage
+ */
+export function formatPercentage(value: number, decimals = 1): string {
+  return `${(value * 100).toFixed(decimals)}%`;
+}
+
+/**
+ * Format a date relative to current time (e.g., "2 hours ago")
+ */
+export function formatRelativeTime(date: Date | string): string {
+  return timeAgo(date);
+}
+
+/**
+ * Get a color based on trend score
+ */
+export function getTrendScoreColor(score: number): string {
+  if (score >= 80) return 'text-green-500';
+  if (score >= 60) return 'text-emerald-500';
+  if (score >= 40) return 'text-amber-500';
+  if (score >= 20) return 'text-orange-500';
+  return 'text-red-500';
+}
+
+/**
+ * Debounce function for handling rapid events
+ */
+export function debounce<T extends (...args: any[]) => any>(
+  func: T,
+  wait: number
+): (...args: Parameters<T>) => void {
+  let timeout: NodeJS.Timeout | null = null;
+  
+  return function(...args: Parameters<T>) {
+    const later = () => {
+      timeout = null;
+      func(...args);
+    };
+    
+    if (timeout !== null) {
+      clearTimeout(timeout);
+    }
+    timeout = setTimeout(later, wait);
+  };
 }

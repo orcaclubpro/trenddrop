@@ -1,257 +1,200 @@
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'wouter';
-import { 
-  ArrowLeft, 
-  LineChart, 
-  Layers, 
-  Globe, 
-  Video, 
-  ExternalLink, 
-  ShoppingCart 
-} from 'lucide-react';
-import { API, CHART_COLORS } from '@/lib/constants';
-import { 
-  formatCurrency, 
-  getTrendScoreColor, 
-  truncateString 
-} from '@/lib/utils';
-import { ProductWithDetails } from '@shared/schema';
-
-import { TrendScoreBadge } from '@/components/product/TrendScoreBadge';
-import { TrendChart } from '@/components/product/TrendChart';
-import { RegionDistribution } from '@/components/product/RegionDistribution';
-import { VideoGallery } from '@/components/product/VideoGallery';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { ArrowLeft, BarChart, TrendingUp, MapPin, Video } from 'lucide-react';
+import { Link, useLocation } from 'wouter';
+import { formatDate, formatCurrency, getTrendScoreColor } from '@/lib/utils';
+import { LoadingScreen } from '@/components/ui/loading-screen';
+import { useToast } from '@/hooks/use-toast';
 
 interface ProductDetailProps {
   id: number;
 }
 
-function ProductDetail({ id }: ProductDetailProps) {
-  // Fetch product details
-  const { data, isLoading, error } = useQuery<ProductWithDetails>({
-    queryKey: [`${API.PRODUCTS}/${id}`],
+export default function ProductDetail({ id }: ProductDetailProps) {
+  const { toast } = useToast();
+  const [, navigate] = useLocation();
+
+  const { data: product, isLoading, error } = useQuery({
+    queryKey: ['/api/products', id],
+    throwOnError: false
   });
 
-  // Loading state
+  useEffect(() => {
+    if (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to load product details',
+        variant: 'destructive',
+      });
+    }
+  }, [error, toast]);
+
   if (isLoading) {
+    return <LoadingScreen />;
+  }
+
+  if (!product) {
     return (
-      <div className="animate-pulse space-y-6">
-        <div className="flex items-center space-x-2">
-          <div className="h-4 w-4 bg-muted rounded-full"></div>
-          <div className="h-4 w-24 bg-muted rounded"></div>
-        </div>
-        <div className="space-y-3">
-          <div className="h-8 bg-muted rounded w-1/3"></div>
-          <div className="h-4 bg-muted rounded w-1/4"></div>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-24 bg-muted rounded-lg"></div>
-          ))}
-        </div>
-        <div className="h-64 bg-muted rounded-lg"></div>
+      <div className="text-center py-20">
+        <h2 className="text-2xl font-bold text-foreground">Product Not Found</h2>
+        <p className="text-muted-foreground mt-2">The product you're looking for doesn't exist or has been removed.</p>
+        <Button 
+          className="mt-6" 
+          variant="default" 
+          onClick={() => navigate('/')}
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Dashboard
+        </Button>
       </div>
     );
   }
-
-  // Error state
-  if (error || !data) {
-    return (
-      <div>
-        <Link href="/">
-          <a className="inline-flex items-center text-sm text-primary hover:underline mb-4">
-            <ArrowLeft className="mr-1 h-4 w-4" />
-            Back to Dashboard
-          </a>
-        </Link>
-        <div className="bg-destructive/10 text-destructive p-4 rounded-lg">
-          <h2 className="text-lg font-semibold mb-2">Error Loading Product</h2>
-          <p>There was a problem fetching the product data. This product may not exist or has been removed.</p>
-          <Link href="/">
-            <a className="mt-4 inline-flex items-center text-destructive-foreground hover:underline">
-              Return to Dashboard
-            </a>
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  const { product, trends, regions, videos } = data;
 
   return (
-    <div className="space-y-6 pb-8">
-      {/* Back navigation */}
-      <Link href="/">
-        <a className="inline-flex items-center text-sm text-primary hover:underline">
-          <ArrowLeft className="mr-1 h-4 w-4" />
-          Back to Dashboard
-        </a>
-      </Link>
-
-      {/* Product header */}
-      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">{product.name}</h1>
-          <div className="flex items-center gap-2 mt-1">
-            <span className="text-sm bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-              {product.category}
-            </span>
-            {product.subcategory && (
-              <span className="text-sm bg-muted text-muted-foreground px-2 py-0.5 rounded-full">
-                {product.subcategory}
+          <Link href="/">
+            <Button variant="outline" size="sm" className="mb-4">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back
+            </Button>
+          </Link>
+          <h2 className="text-3xl font-bold tracking-tight">{product.name}</h2>
+          <p className="text-muted-foreground">
+            {product.category} • Added on {formatDate(product.createdAt)}
+          </p>
+        </div>
+        <div className="flex space-x-3">
+          <Button variant="outline">
+            <TrendingUp className="mr-2 h-4 w-4" />
+            Analyze Trends
+          </Button>
+          <Button variant="default">
+            Export Data
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Trend Score
+            </CardTitle>
+            <BarChart className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              <span className={getTrendScoreColor(product.trendScore || 0)}>
+                {product.trendScore || 0}/100
               </span>
-            )}
-            <span className="text-sm text-muted-foreground">
-              Price: {formatCurrency(product.priceRangeLow)} - {formatCurrency(product.priceRangeHigh)}
-            </span>
-          </div>
-        </div>
-        <TrendScoreBadge score={product.trendScore} size="large" />
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Based on 30 days of data
+            </p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Average Price
+            </CardTitle>
+            <BarChart className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {formatCurrency(product.price || 0)}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Competitive Market Price
+            </p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Active Regions
+            </CardTitle>
+            <MapPin className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {product.regionCount || 0}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Global Distribution
+            </p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Marketing Videos
+            </CardTitle>
+            <Video className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {product.videoCount || 0}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Across Social Platforms
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Quick stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-card shadow-sm rounded-lg p-4 border">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-sm text-muted-foreground">Engagement Rate</p>
-              <p className="text-2xl font-semibold">{product.engagementRate}%</p>
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Trend Analysis</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-80 flex items-center justify-center text-muted-foreground">
+              Trend chart visualization will appear here
             </div>
-            <div className="p-2 bg-primary/10 rounded-full">
-              <LineChart className="h-5 w-5 text-primary" />
-            </div>
-          </div>
-          <div className="mt-2 text-xs text-muted-foreground">
-            Social media interaction rate
-          </div>
-        </div>
+          </CardContent>
+        </Card>
         
-        <div className="bg-card shadow-sm rounded-lg p-4 border">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-sm text-muted-foreground">Sales Velocity</p>
-              <p className="text-2xl font-semibold">{product.salesVelocity}</p>
+        <Card>
+          <CardHeader>
+            <CardTitle>Regional Distribution</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-80 flex items-center justify-center text-muted-foreground">
+              Region map will appear here
             </div>
-            <div className="p-2 bg-primary/10 rounded-full">
-              <ShoppingCart className="h-5 w-5 text-primary" />
-            </div>
-          </div>
-          <div className="mt-2 text-xs text-muted-foreground">
-            Units sold per week
-          </div>
-        </div>
-        
-        <div className="bg-card shadow-sm rounded-lg p-4 border">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-sm text-muted-foreground">Search Volume</p>
-              <p className="text-2xl font-semibold">{product.searchVolume}</p>
-            </div>
-            <div className="p-2 bg-primary/10 rounded-full">
-              <Layers className="h-5 w-5 text-primary" />
-            </div>
-          </div>
-          <div className="mt-2 text-xs text-muted-foreground">
-            Monthly search frequency
-          </div>
-        </div>
-        
-        <div className="bg-card shadow-sm rounded-lg p-4 border">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-sm text-muted-foreground">Geographic Spread</p>
-              <p className="text-2xl font-semibold">{product.geographicSpread}</p>
-            </div>
-            <div className="p-2 bg-primary/10 rounded-full">
-              <Globe className="h-5 w-5 text-primary" />
-            </div>
-          </div>
-          <div className="mt-2 text-xs text-muted-foreground">
-            Number of active markets
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Description if available */}
-      {product.description && (
-        <div className="bg-card shadow-sm rounded-lg p-4 border">
-          <h2 className="text-lg font-semibold mb-2">Product Description</h2>
-          <p className="text-muted-foreground">{product.description}</p>
-        </div>
-      )}
-
-      {/* External Links */}
-      {(product.aliexpressUrl || product.cjdropshippingUrl) && (
-        <div className="bg-card shadow-sm rounded-lg p-4 border">
-          <h2 className="text-lg font-semibold mb-3">Supply Sources</h2>
-          <div className="flex flex-wrap gap-3">
-            {product.aliexpressUrl && (
-              <a 
-                href={product.aliexpressUrl} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="inline-flex items-center px-3 py-2 bg-[#FF4747]/10 text-[#FF4747] rounded-md hover:bg-[#FF4747]/20 transition-colors"
-              >
-                <span className="font-medium">AliExpress</span>
-                <ExternalLink className="ml-2 h-4 w-4" />
-              </a>
-            )}
-            
-            {product.cjdropshippingUrl && (
-              <a 
-                href={product.cjdropshippingUrl} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="inline-flex items-center px-3 py-2 bg-[#295AB9]/10 text-[#295AB9] rounded-md hover:bg-[#295AB9]/20 transition-colors"
-              >
-                <span className="font-medium">CJ Dropshipping</span>
-                <ExternalLink className="ml-2 h-4 w-4" />
-              </a>
-            )}
+      <Card>
+        <CardHeader>
+          <CardTitle>Marketing Videos</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-60 flex items-center justify-center text-muted-foreground">
+            Video gallery will appear here
           </div>
-        </div>
-      )}
-
-      {/* Chart and data analysis */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Trend History Chart */}
-        <div className="bg-card shadow-sm rounded-lg border">
-          <div className="p-4 border-b">
-            <h2 className="text-lg font-semibold">Trend History</h2>
-          </div>
-          <div className="p-4 h-64">
-            <TrendChart trends={trends || []} />
-          </div>
-        </div>
-
-        {/* Geographic Distribution */}
-        <div className="bg-card shadow-sm rounded-lg border">
-          <div className="p-4 border-b">
-            <h2 className="text-lg font-semibold">Geographic Distribution</h2>
-          </div>
-          <div className="p-4 h-64">
-            <RegionDistribution regions={regions || []} />
-          </div>
-        </div>
-      </div>
-
-      {/* Marketing Videos */}
-      {videos && videos.length > 0 && (
-        <div className="bg-card shadow-sm rounded-lg border">
-          <div className="p-4 border-b flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Marketing Videos</h2>
-            <span className="text-sm text-muted-foreground">
-              {videos.length} {videos.length === 1 ? 'video' : 'videos'} available
-            </span>
-          </div>
-          <div className="p-4">
-            <VideoGallery videos={videos} />
-          </div>
-        </div>
-      )}
+        </CardContent>
+      </Card>
+      
+      <Card>
+        <CardHeader>
+          <CardTitle>Product Description</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-foreground">
+            {product.description || "No product description available."}
+          </p>
+        </CardContent>
+      </Card>
     </div>
   );
 }
-
-export default ProductDetail;

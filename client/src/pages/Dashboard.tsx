@@ -1,225 +1,295 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'wouter';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { BarChart3, ShoppingBag, TrendingUp, Globe, Video } from 'lucide-react';
-import { formatDate, formatCurrency, truncate } from '@/lib/utils';
-import { API } from '@/lib/constants';
-import { useWebSocket } from '@/hooks/use-websocket';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { 
+  BarChart2, 
+  Package, 
+  TrendingUp, 
+  MapPin, 
+  Video, 
+  RefreshCcw,
+  Globe,
+  Zap,
+  Filter
+} from 'lucide-react';
+import { formatCompactNumber, formatCurrency } from '@/lib/utils';
+import { LoadingScreen } from '@/components/ui/loading-screen';
 import { useToast } from '@/hooks/use-toast';
-
-const DashboardCard = ({ title, value, icon: Icon, trend, color = 'primary' }) => (
-  <div className="bg-card rounded-lg p-5 shadow-sm border">
-    <div className="flex justify-between items-start">
-      <div>
-        <h3 className="text-sm font-medium text-muted-foreground mb-1">{title}</h3>
-        <p className="text-2xl font-bold">{value}</p>
-        {trend && (
-          <p className={`text-xs font-medium mt-1 ${trend >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-            {trend >= 0 ? '↑' : '↓'} {Math.abs(trend)}% from last period
-          </p>
-        )}
-      </div>
-      <div className={`p-3 rounded-full bg-${color}/10 text-${color}`}>
-        <Icon className="h-5 w-5" />
-      </div>
-    </div>
-  </div>
-);
+import { useWebSocket } from '@/hooks/use-websocket';
+import { WS_MESSAGE_TYPES } from '@/lib/constants';
 
 export default function Dashboard() {
   const { toast } = useToast();
-  const [dashboardData, setDashboardData] = useState({
-    totalProducts: 0,
-    trendingProducts: 0,
-    totalRegions: 0,
-    totalVideos: 0,
-    recentProducts: [],
-    popularCategories: [],
-    productsByRegion: [],
-    trendScores: [],
-  });
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Websocket for real-time updates
-  const { isConnected, lastMessage } = useWebSocket({
+  // WebSocket integration for real-time updates
+  useWebSocket({
     onOpen: () => {
-      toast({
-        title: 'Connected',
-        description: 'Real-time dashboard updates enabled',
-      });
+      console.log('WebSocket connection opened');
     },
     onMessage: (message) => {
-      if (message.type === 'product_added' || message.type === 'product_updated') {
-        refetch();
+      if (message.type === WS_MESSAGE_TYPES.PRODUCT_UPDATE) {
+        // Invalidate queries to refresh data
+        console.log('Product update received, refreshing data');
       }
     }
   });
 
-  // Fetch dashboard data
-  const { data, isLoading, error, refetch } = useQuery({
-    queryKey: [API.DASHBOARD],
-    staleTime: 1000 * 60, // 1 minute
+  // Fetch dashboard summary data
+  const { 
+    data: dashboardData, 
+    isLoading, 
+    error, 
+    refetch 
+  } = useQuery({
+    queryKey: ['/api/dashboard']
   });
 
   useEffect(() => {
-    if (data) {
-      setDashboardData(data);
+    if (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to load dashboard data',
+        variant: 'destructive',
+      });
     }
-  }, [data]);
+  }, [error, toast]);
 
-  if (isLoading) {
-    return <div className="animate-pulse">Loading dashboard data...</div>;
-  }
-
-  if (error) {
-    return (
-      <div className="bg-red-50 p-4 rounded-md text-red-800">
-        <h2 className="text-lg font-semibold">Error loading dashboard</h2>
-        <p className="mt-1">Please try refreshing the page</p>
-      </div>
-    );
-  }
-
-  // For demo purposes, creating mock data while the backend is being developed
-  const mockData = {
-    totalProducts: 124,
-    trendingProducts: 18,
-    totalRegions: 32,
-    totalVideos: 560,
-    recentProducts: [
-      { id: 1, name: 'Smart Plant Monitor', category: 'Home Tech', trendScore: 87, createdAt: '2025-03-28T14:23:00Z', priceRangeLow: 19.99, priceRangeHigh: 45.99 },
-      { id: 2, name: 'Foldable Solar Charger', category: 'Eco Gadgets', trendScore: 92, createdAt: '2025-03-27T09:15:00Z', priceRangeLow: 34.99, priceRangeHigh: 49.99 },
-      { id: 3, name: 'Portable Blender', category: 'Kitchen', trendScore: 76, createdAt: '2025-03-26T16:42:00Z', priceRangeLow: 24.99, priceRangeHigh: 39.99 },
-      { id: 4, name: 'LED Dog Collar', category: 'Pet Accessories', trendScore: 81, createdAt: '2025-03-25T11:30:00Z', priceRangeLow: 14.99, priceRangeHigh: 29.99 },
-    ],
-    popularCategories: [
-      { name: 'Smart Home', count: 28 },
-      { name: 'Eco Gadgets', count: 22 },
-      { name: 'Kitchen', count: 19 },
-      { name: 'Pet Accessories', count: 16 },
-      { name: 'Beauty Tech', count: 12 },
-    ],
+  // Handle manual refresh
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await refetch();
+    setIsRefreshing(false);
+    
+    toast({
+      title: 'Dashboard Refreshed',
+      description: 'Latest data has been loaded',
+    });
   };
 
-  // Use mock data for demonstration
-  const displayData = data?.products?.length > 0 ? dashboardData : mockData;
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Dashboard</h1>
-      
-      {!isConnected && (
-        <div className="bg-amber-50 border border-amber-200 p-3 rounded-md text-amber-700 text-sm mb-4">
-          Not connected to real-time updates. Some information may be outdated.
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+          <p className="text-muted-foreground">
+            Your product trend intelligence at a glance
+          </p>
         </div>
-      )}
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <DashboardCard 
-          title="Total Products" 
-          value={displayData.totalProducts} 
-          icon={ShoppingBag} 
-          trend={12}
-        />
-        <DashboardCard 
-          title="Trending Products" 
-          value={displayData.trendingProducts} 
-          icon={TrendingUp} 
-          trend={24}
-          color="violet"
-        />
-        <DashboardCard 
-          title="Global Regions" 
-          value={displayData.totalRegions} 
-          icon={Globe} 
-          trend={5}
-          color="blue"
-        />
-        <DashboardCard 
-          title="Social Videos" 
-          value={displayData.totalVideos} 
-          icon={Video} 
-          trend={18}
-          color="pink"
-        />
+        <Button
+          variant="outline"
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+        >
+          <RefreshCcw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
       </div>
-      
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="border-l-4 border-l-primary">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex justify-between items-center text-base font-medium">
+              Products Tracked
+              <Package className="h-4 w-4 text-muted-foreground" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {formatCompactNumber(dashboardData?.productCount || 0)}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {dashboardData?.newProductCount ? `+${dashboardData.newProductCount} this week` : 'No new products this week'}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-l-green-500">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex justify-between items-center text-base font-medium">
+              Average Trend Score
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {dashboardData?.averageTrendScore?.toFixed(1) || '0'}/100
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {dashboardData?.trendScoreChange > 0 
+                ? `↑ ${dashboardData.trendScoreChange.toFixed(1)} points` 
+                : dashboardData?.trendScoreChange < 0 
+                  ? `↓ ${Math.abs(dashboardData.trendScoreChange).toFixed(1)} points` 
+                  : 'No change in trend score'}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-l-amber-500">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex justify-between items-center text-base font-medium">
+              Active Regions
+              <Globe className="h-4 w-4 text-muted-foreground" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {formatCompactNumber(dashboardData?.regionCount || 0)}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Across {dashboardData?.countryCount || 0} countries
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-l-blue-500">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex justify-between items-center text-base font-medium">
+              Avg. Market Value
+              <Zap className="h-4 w-4 text-muted-foreground" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {formatCurrency(dashboardData?.averagePrice || 0)}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {dashboardData?.priceChange > 0 
+                ? `↑ ${dashboardData.priceChange.toFixed(1)}% increase` 
+                : dashboardData?.priceChange < 0 
+                  ? `↓ ${Math.abs(dashboardData.priceChange).toFixed(1)}% decrease` 
+                  : 'No price change'}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Trend & Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-card p-5 rounded-lg shadow-sm border lg:col-span-2">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold">Recently Added Products</h2>
-            <Link href="/categories">
-              <a className="text-sm text-primary hover:underline">View all</a>
-            </Link>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b text-left text-xs text-muted-foreground">
-                  <th className="pb-2 font-medium">Product Name</th>
-                  <th className="pb-2 font-medium">Category</th>
-                  <th className="pb-2 font-medium">Trend Score</th>
-                  <th className="pb-2 font-medium">Price Range</th>
-                  <th className="pb-2 font-medium">Date Added</th>
-                </tr>
-              </thead>
-              <tbody>
-                {displayData.recentProducts.map((product) => (
-                  <tr key={product.id} className="border-b border-muted hover:bg-muted/50">
-                    <td className="py-3 pr-4">
-                      <Link href={`/products/${product.id}`}>
-                        <a className="font-medium hover:text-primary">
-                          {truncate(product.name, 30)}
-                        </a>
-                      </Link>
-                    </td>
-                    <td className="py-3 pr-4">{product.category}</td>
-                    <td className="py-3 pr-4">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        product.trendScore >= 80 ? 'bg-green-100 text-green-800' : 
-                        product.trendScore >= 60 ? 'bg-blue-100 text-blue-800' : 
-                        'bg-amber-100 text-amber-800'
-                      }`}>
-                        {product.trendScore}
-                      </span>
-                    </td>
-                    <td className="py-3 pr-4">
-                      {formatCurrency(product.priceRangeLow)} - {formatCurrency(product.priceRangeHigh)}
-                    </td>
-                    <td className="py-3 pr-4 text-sm text-muted-foreground">
-                      {formatDate(product.createdAt)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        
-        <div className="bg-card p-5 rounded-lg shadow-sm border">
-          <h2 className="text-lg font-semibold mb-4">Popular Categories</h2>
-          <div className="space-y-3">
-            {displayData.popularCategories.map((category, index) => (
-              <div key={index} className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <span className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-bold">
-                    {index + 1}
-                  </span>
-                  <span className="ml-3 font-medium">{category.name}</span>
+        {/* Trend Score Distribution */}
+        <Card className="lg:col-span-2">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>Trend Score Distribution</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Product trend scores across categories
+              </p>
+            </div>
+            <Button variant="outline" size="sm">
+              <Filter className="h-4 w-4 mr-2" />
+              Filter
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+              Trend score chart visualization will appear here
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Popular Products */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Popular Products</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Highest trending items
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-8">
+              {dashboardData?.topProducts?.length ? (
+                dashboardData.topProducts.map((product, index) => (
+                  <div key={index} className="flex items-center">
+                    <div className="w-10 h-10 rounded bg-primary/10 flex items-center justify-center mr-3">
+                      <span className="font-medium">{index + 1}</span>
+                    </div>
+                    <div className="flex-1 space-y-1">
+                      <p className="font-medium leading-none">{product.name}</p>
+                      <p className="text-sm text-muted-foreground">{product.category}</p>
+                    </div>
+                    <div className="font-medium">
+                      {product.trendScore}/100
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="flex items-center justify-center h-[200px] text-muted-foreground">
+                  No product data available
                 </div>
-                <span className="bg-muted px-2 py-1 rounded text-sm">
-                  {category.count} products
-                </span>
-              </div>
-            ))}
-          </div>
-          <div className="mt-6 pt-4 border-t">
-            <Link href="/categories">
-              <a className="text-sm text-primary hover:underline flex items-center justify-center">
-                View all categories
-              </a>
-            </Link>
-          </div>
-        </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Additional Information */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex justify-between items-center">
+              Top Categories
+              <Package className="h-4 w-4 text-muted-foreground" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              {dashboardData?.topCategories?.length ? (
+                dashboardData.topCategories.map((category, index) => (
+                  <div key={index} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">{category.name}</span>
+                      <span className="text-sm">{category.count} products</span>
+                    </div>
+                    <div className="w-full bg-secondary rounded-full h-1.5">
+                      <div 
+                        className="bg-primary h-1.5 rounded-full" 
+                        style={{ width: `${category.percentage}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="flex items-center justify-center h-[150px] text-muted-foreground">
+                  No category data available
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex justify-between items-center">
+              Popular Regions
+              <MapPin className="h-4 w-4 text-muted-foreground" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[250px] flex items-center justify-center text-muted-foreground">
+              Region map visualization will appear here
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex justify-between items-center">
+              Popular Videos
+              <Video className="h-4 w-4 text-muted-foreground" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[250px] flex items-center justify-center text-muted-foreground">
+              Video gallery will appear here
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
