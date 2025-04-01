@@ -7,8 +7,13 @@ import { TrendService } from "./services/trend-service.js";
 import { VideoService } from "./services/video-service.js";
 import { log } from "./vite.js";
 import { getAgentStatus } from "./services/agent-service.js";
-import { initializeAIAgent, startAIAgent, stopAIAgent, getAIAgentStatus } from "./services/ai-agent-service.js";
 import { DatabaseService } from "./services/database-service.js";
+import { 
+  initializeAIAgent, 
+  startAIAgent, 
+  stopAIAgent, 
+  getAIAgentStatus 
+} from "./services/ai/index.js";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize services
