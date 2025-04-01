@@ -21,7 +21,7 @@ import { formatRelativeTime } from "@/lib/api";
 import MetricsSummary from "@/components/metrics-summary";
 import FilterBar from "@/components/filter-bar";
 import ProductList from "@/components/product-list";
-import ProductDetail from "@/components/product-detail";
+import ScrollingProductSidebar from "@/components/scrolling-product-sidebar";
 import ProductDashboard from "@/components/product-dashboard";
 
 // Type definition for scraper status response
@@ -320,20 +320,22 @@ export default function Dashboard() {
             <div className="max-w-[1800px] mx-auto">
               <MetricsSummary />
               
-              <div className="flex flex-col lg:flex-row gap-6">
-                <div className="flex-1">
-                  <ProductDashboard 
-                    products={(productsData?.products || [])} 
-                    onSelectProduct={handleSelectProduct} 
-                    isRefreshing={isRefreshing}
-                    onRefresh={handleRefresh}
-                  />
-                </div>
-                
-                <div className="lg:w-[450px]">
-                  <ProductDetail productId={selectedProductId} />
-                </div>
+              <div className="flex-1">
+                <ProductDashboard 
+                  products={(productsData?.products || [])} 
+                  onSelectProduct={handleSelectProduct} 
+                  isRefreshing={isRefreshing}
+                  onRefresh={handleRefresh}
+                />
               </div>
+              
+              {/* Use the new scrolling sidebar component instead of the static detail panel */}
+              {selectedProductId && (
+                <ScrollingProductSidebar 
+                  productId={selectedProductId}
+                  onClose={() => setSelectedProductId(null)} 
+                />
+              )}
             </div>
           </div>
         </>

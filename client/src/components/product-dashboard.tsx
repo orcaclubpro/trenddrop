@@ -64,10 +64,13 @@ export default function ProductDashboard({ products, isRefreshing, onSelectProdu
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-bold text-primary-900 dark:text-primary-100">Trending Products</h2>
+        <h2 className="text-xl font-bold text-primary-900 dark:text-primary-100 flex items-center">
+          <TrendingUp className="h-5 w-5 mr-2 text-primary" />
+          Trending Products
+        </h2>
         <div className="flex items-center gap-4">
           <Tabs value={activeView} onValueChange={setActiveView} className="w-auto">
-            <TabsList className="bg-primary-100/50 dark:bg-primary-900/20">
+            <TabsList className="bg-primary/10">
               <TabsTrigger 
                 value="grid" 
                 className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
@@ -89,7 +92,7 @@ export default function ProductDashboard({ products, isRefreshing, onSelectProdu
             disabled={isRefreshing}
             variant="outline"
             size="sm"
-            className="border-primary-200 hover:bg-primary-100/50 dark:border-primary-800 dark:hover:bg-primary-900/20"
+            className="border-primary/20 hover:bg-primary/5 hover:border-primary/30"
           >
             {isRefreshing ? 'Refreshing...' : 'Refresh'}
           </Button>
@@ -102,20 +105,20 @@ export default function ProductDashboard({ products, isRefreshing, onSelectProdu
             {displayProducts.map(product => (
               <Card 
                 key={product.id} 
-                className="overflow-hidden cursor-pointer border-primary-100 dark:border-primary-800 hover:shadow-md hover:shadow-primary-100/20 dark:hover:shadow-primary-900/30 transition-all"
+                className="overflow-hidden cursor-pointer border-primary/20 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/10 transition-all"
                 onClick={() => onSelectProduct(product)}
               >
-                <CardHeader className="pb-2 border-b border-primary-50 dark:border-primary-900/50">
+                <CardHeader className="pb-2 border-b border-primary/10">
                   <div className="flex justify-between items-start">
                     <div>
-                      <Badge className="mb-2 bg-primary-50 text-primary-700 hover:bg-primary-100 dark:bg-primary-900/50 dark:text-primary-300 dark:hover:bg-primary-900">{product.category}</Badge>
-                      <CardTitle className="text-lg text-primary-900 dark:text-primary-100">{product.name}</CardTitle>
+                      <Badge className="mb-2 bg-primary/10 text-primary hover:bg-primary/15">{product.category}</Badge>
+                      <CardTitle className="text-lg">{product.name}</CardTitle>
                     </div>
                     <TrendScoreRing score={product.trendScore} size={50} thickness={5} />
                   </div>
                 </CardHeader>
                 <CardContent className="pt-4">
-                  <div className="relative h-40 mb-4 bg-primary-50 dark:bg-primary-950/30 rounded-md overflow-hidden flex items-center justify-center">
+                  <div className="relative h-40 mb-4 bg-primary/5 rounded-md overflow-hidden flex items-center justify-center">
                     {product.imageUrl ? (
                       <img 
                         src={product.imageUrl} 
@@ -123,21 +126,21 @@ export default function ProductDashboard({ products, isRefreshing, onSelectProdu
                         className="object-cover w-full h-full"
                       />
                     ) : (
-                      <Pocket className="h-16 w-16 text-primary-200 dark:text-primary-800" />
+                      <Pocket className="h-16 w-16 text-primary/20" />
                     )}
                   </div>
                   
                   <div className="grid grid-cols-2 gap-2 text-sm mb-3">
-                    <div>
-                      <div className="text-primary-600 dark:text-primary-400 mb-1 flex items-center gap-1">
+                    <div className="bg-primary/5 p-2 rounded-md">
+                      <div className="text-primary/70 mb-1 flex items-center gap-1">
                         <ShoppingCart className="h-3 w-3" /> Price Range
                       </div>
-                      <div className="font-medium text-primary-900 dark:text-primary-100">
+                      <div className="font-medium">
                         {formatCurrency(product.priceRangeLow)} - {formatCurrency(product.priceRangeHigh)}
                       </div>
                     </div>
-                    <div>
-                      <div className="text-primary-600 dark:text-primary-400 mb-1 flex items-center gap-1">
+                    <div className="bg-primary/5 p-2 rounded-md">
+                      <div className="text-primary/70 mb-1 flex items-center gap-1">
                         <TrendingUp className="h-3 w-3" /> Trend Score
                       </div>
                       <div className={`font-medium ${scoreColorClass(product.trendScore)}`}>
@@ -152,7 +155,7 @@ export default function ProductDashboard({ products, isRefreshing, onSelectProdu
                         href={product.aliexpressUrl} 
                         target="_blank" 
                         rel="noreferrer"
-                        className="text-xs flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-700 rounded-full hover:bg-orange-200 transition-colors"
+                        className="text-xs flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-full hover:bg-primary/20 transition-colors"
                         onClick={(e) => e.stopPropagation()}
                       >
                         AliExpress <ExternalLink className="h-3 w-3" />
@@ -163,13 +166,13 @@ export default function ProductDashboard({ products, isRefreshing, onSelectProdu
                         href={product.cjdropshippingUrl} 
                         target="_blank" 
                         rel="noreferrer"
-                        className="text-xs flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200 transition-colors"
+                        className="text-xs flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-full hover:bg-primary/20 transition-colors"
                         onClick={(e) => e.stopPropagation()}
                       >
                         CJ <ExternalLink className="h-3 w-3" />
                       </a>
                     )}
-                    <span className="text-xs flex items-center gap-1 px-2 py-1 bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300 rounded-full">
+                    <span className="text-xs flex items-center gap-1 px-2 py-1 bg-primary/5 text-primary/70 rounded-full">
                       {product.sourcePlatform} <ArrowUpRight className="h-3 w-3" />
                     </span>
                   </div>
@@ -180,28 +183,28 @@ export default function ProductDashboard({ products, isRefreshing, onSelectProdu
         </TabsContent>
         
         <TabsContent value="table" className="w-full">
-          <div className="rounded-md border border-primary-100 dark:border-primary-800 overflow-hidden">
+          <div className="rounded-md border border-primary/20 overflow-hidden">
             <table className="w-full">
               <thead>
-                <tr className="bg-primary-50 dark:bg-primary-950/30">
-                  <th className="p-3 text-left font-medium text-primary-700 dark:text-primary-300">Product</th>
-                  <th className="p-3 text-left font-medium text-primary-700 dark:text-primary-300">Category</th>
-                  <th className="p-3 text-left font-medium text-primary-700 dark:text-primary-300">Price Range</th>
-                  <th className="p-3 text-left font-medium text-primary-700 dark:text-primary-300">Trend Score</th>
-                  <th className="p-3 text-left font-medium text-primary-700 dark:text-primary-300">Source</th>
-                  <th className="p-3 text-left font-medium text-primary-700 dark:text-primary-300">Links</th>
+                <tr className="bg-primary/5">
+                  <th className="p-3 text-left font-medium text-primary">Product</th>
+                  <th className="p-3 text-left font-medium text-primary">Category</th>
+                  <th className="p-3 text-left font-medium text-primary">Price Range</th>
+                  <th className="p-3 text-left font-medium text-primary">Trend Score</th>
+                  <th className="p-3 text-left font-medium text-primary">Source</th>
+                  <th className="p-3 text-left font-medium text-primary">Links</th>
                 </tr>
               </thead>
               <tbody>
                 {displayProducts.map(product => (
                   <tr 
                     key={product.id} 
-                    className="border-t border-primary-100 dark:border-primary-900/30 cursor-pointer hover:bg-primary-50/50 dark:hover:bg-primary-950/10 transition-colors"
+                    className="border-t border-primary/10 cursor-pointer hover:bg-primary/5 transition-colors"
                     onClick={() => onSelectProduct(product)}
                   >
                     <td className="p-3">
                       <div className="flex items-center gap-2">
-                        <div className="h-10 w-10 rounded-md bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center overflow-hidden">
+                        <div className="h-10 w-10 rounded-md bg-primary/5 flex items-center justify-center overflow-hidden">
                           {product.imageUrl ? (
                             <img 
                               src={product.imageUrl} 
@@ -209,16 +212,16 @@ export default function ProductDashboard({ products, isRefreshing, onSelectProdu
                               className="h-full w-full object-cover"
                             />
                           ) : (
-                            <Pocket className="h-5 w-5 text-primary-300 dark:text-primary-700" />
+                            <Pocket className="h-5 w-5 text-primary/20" />
                           )}
                         </div>
-                        <div className="font-medium text-primary-900 dark:text-primary-100">{product.name}</div>
+                        <div className="font-medium">{product.name}</div>
                       </div>
                     </td>
                     <td className="p-3">
-                      <Badge className="bg-primary-50 text-primary-700 hover:bg-primary-100 dark:bg-primary-900/50 dark:text-primary-300 dark:hover:bg-primary-900">{product.category}</Badge>
+                      <Badge className="bg-primary/10 text-primary hover:bg-primary/15">{product.category}</Badge>
                     </td>
-                    <td className="p-3 text-primary-900 dark:text-primary-100">
+                    <td className="p-3">
                       {formatCurrency(product.priceRangeLow)} - {formatCurrency(product.priceRangeHigh)}
                     </td>
                     <td className="p-3">
@@ -229,7 +232,7 @@ export default function ProductDashboard({ products, isRefreshing, onSelectProdu
                         </span>
                       </div>
                     </td>
-                    <td className="p-3 text-primary-900 dark:text-primary-100">
+                    <td className="p-3">
                       {product.sourcePlatform}
                     </td>
                     <td className="p-3">
@@ -239,7 +242,7 @@ export default function ProductDashboard({ products, isRefreshing, onSelectProdu
                             href={product.aliexpressUrl} 
                             target="_blank" 
                             rel="noreferrer"
-                            className="text-xs flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-700 rounded-full hover:bg-orange-200 transition-colors"
+                            className="text-xs flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-full hover:bg-primary/20 transition-colors"
                             onClick={(e) => e.stopPropagation()}
                           >
                             AliExpress <ExternalLink className="h-3 w-3" />
@@ -250,7 +253,7 @@ export default function ProductDashboard({ products, isRefreshing, onSelectProdu
                             href={product.cjdropshippingUrl} 
                             target="_blank" 
                             rel="noreferrer"
-                            className="text-xs flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200 transition-colors"
+                            className="text-xs flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-full hover:bg-primary/20 transition-colors"
                             onClick={(e) => e.stopPropagation()}
                           >
                             CJ <ExternalLink className="h-3 w-3" />
@@ -271,9 +274,10 @@ export default function ProductDashboard({ products, isRefreshing, onSelectProdu
           <Button 
             onClick={loadMore} 
             variant="outline"
-            className="border-primary-200 hover:bg-primary-50 dark:border-primary-800 dark:hover:bg-primary-900/20"
+            className="border-primary/20 hover:bg-primary/5 hover:border-primary/30"
           >
-            Load More
+            <ArrowUpRight className="mr-2 h-4 w-4" />
+            Load More Products
           </Button>
         </div>
       )}

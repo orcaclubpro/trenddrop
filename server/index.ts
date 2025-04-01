@@ -118,6 +118,20 @@ async function initializeApp(retryCount = 0): Promise<void> {
             log(`Sending status update to client: ${JSON.stringify(statusMessage)}`);
             ws.send(JSON.stringify(statusMessage));
           }
+          
+          // Handle ping messages with a pong response
+          if (data.type === "ping") {
+            try {
+              const pongMessage = {
+                type: "pong",
+                timestamp: new Date().toISOString(),
+                clientId: data.clientId
+              };
+              ws.send(JSON.stringify(pongMessage));
+            } catch (error) {
+              log(`Error sending pong response: ${error}`);
+            }
+          }
         } catch (error) {
           log(`Error processing WebSocket message: ${error}`);
         }
@@ -171,12 +185,29 @@ async function initializeApp(retryCount = 0): Promise<void> {
     // that might have connected after the initial broadcast
     setInterval(() => {
       if (clients.size > 0) {
-        log(`Re-broadcasting agent status to ${clients.size} clients`);
+        // Clean up closed or error connections
+        const closedClients = new Set<WebSocket>();
         clients.forEach(client => {
-          if (client.readyState === WebSocket.OPEN) {
-            client.send(startMessage);
+          if (client.readyState === WebSocket.CLOSED || 
+              client.readyState === WebSocket.CLOSING) {
+            closedClients.add(client);
           }
         });
+        
+        // Remove closed clients
+        closedClients.forEach(client => {
+          clients.delete(client);
+        });
+        
+        // Only broadcast if we still have open clients
+        if (clients.size > 0) {
+          log(`Re-broadcasting agent status to ${clients.size} clients`);
+          clients.forEach(client => {
+            if (client.readyState === WebSocket.OPEN) {
+              client.send(startMessage);
+            }
+          });
+        }
       }
     }, 5000); // Every 5 seconds
 
