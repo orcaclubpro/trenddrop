@@ -98,6 +98,27 @@ function App() {
         dbStatus: 'connected',
         message: 'Initializing application components...'
       }));
+      
+      // Auto-initialize after 5 seconds if no agent_status message received
+      // This helps in case the agent status message was missed
+      const autoInitTimeout = setTimeout(() => {
+        setAppState(prev => {
+          // Only auto-initialize if we're still not initialized
+          if (!prev.initialized) {
+            console.log('Auto-initializing after timeout...');
+            return {
+              ...prev,
+              initialized: true,
+              agentStatus: 'started',
+              message: 'Application ready'
+            };
+          }
+          return prev;
+        });
+      }, 5000);
+      
+      // Clean up timeout
+      return () => clearTimeout(autoInitTimeout);
     } else if (wsStatus === 'error' || wsStatus === 'closed') {
       // Set error state when WebSocket connection fails
       setAppState(prev => ({
@@ -109,6 +130,7 @@ function App() {
     
     // Process WebSocket messages
     for (const msg of messages) {
+      console.log('Received WebSocket message:', msg);
       if (msg.type === 'connection_established') {
         setAppState(prev => ({
           ...prev,
@@ -116,6 +138,7 @@ function App() {
           agentStatus: msg.agentStatus
         }));
       } else if (msg.type === 'agent_status') {
+        console.log('Received agent_status:', msg.status);
         setAppState(prev => ({
           ...prev,
           agentStatus: msg.status,

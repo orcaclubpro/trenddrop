@@ -94,6 +94,35 @@ async function initializeApp(retryCount = 0): Promise<void> {
         agentStatus: "initializing"
       }));
       
+      // Handle messages from client
+      ws.on("message", (message) => {
+        try {
+          const data = JSON.parse(message.toString());
+          log(`Received client message: ${JSON.stringify(data)}`);
+          
+          // Handle client_connected message by sending current agent status
+          if (data.type === "client_connected") {
+            log("Received client_connected message, sending agent status");
+            
+            // Get current agent status
+            const agentStatus = getAgentStatus();
+            const statusMessage = {
+              type: "agent_status",
+              status: agentStatus.status || "started", // Default to started if undefined
+              timestamp: new Date().toISOString(),
+              message: "Agent service status update",
+              lastRun: agentStatus.lastRun,
+              nextRun: agentStatus.nextRun
+            };
+            
+            log(`Sending status update to client: ${JSON.stringify(statusMessage)}`);
+            ws.send(JSON.stringify(statusMessage));
+          }
+        } catch (error) {
+          log(`Error processing WebSocket message: ${error}`);
+        }
+      });
+      
       ws.on("close", () => {
         log("WebSocket client disconnected");
         clients.delete(ws);
@@ -126,11 +155,30 @@ async function initializeApp(retryCount = 0): Promise<void> {
       timestamp: new Date().toISOString()
     });
     
+    // Log the number of connected clients
+    log(`Broadcasting agent start message to ${clients.size} clients`);
+    
     clients.forEach(client => {
       if (client.readyState === WebSocket.OPEN) {
+        log(`Sending agent_status message to client`);
         client.send(startMessage);
+      } else {
+        log(`Client not in OPEN state: ${client.readyState}`);
       }
     });
+    
+    // Set a periodic re-broadcast of status to catch any clients
+    // that might have connected after the initial broadcast
+    setInterval(() => {
+      if (clients.size > 0) {
+        log(`Re-broadcasting agent status to ${clients.size} clients`);
+        clients.forEach(client => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(startMessage);
+          }
+        });
+      }
+    }, 5000); // Every 5 seconds
 
     // Start the server
     const port = 5000;

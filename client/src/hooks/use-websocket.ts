@@ -36,14 +36,27 @@ export function useWebSocket(url: string) {
     socket.onopen = () => {
       setStatus('open');
       console.log('WebSocket connection established');
+      
+      // Send a ping on connection to request status updates
+      try {
+        socket.send(JSON.stringify({ 
+          type: 'client_connected',
+          timestamp: new Date().toISOString() 
+        }));
+        console.log('Sent client_connected message');
+      } catch (error) {
+        console.error('Error sending client_connected message:', error);
+      }
     };
     
     socket.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data) as WebSocketMessage;
+        console.log('WebSocket message received:', data);
         setMessages((prev) => [...prev, data]);
       } catch (error) {
         console.error('Error parsing WebSocket message:', error);
+        console.error('Raw message data:', event.data);
       }
     };
     
