@@ -1,0 +1,84 @@
+tatus
+5:50:31 PM [express] Sending status update to client: {"type":"agent_status","status":"completed","timestamp":"2025-04-01T17:50:31.825Z","message":"Agent service status update","lastRun":"2025-04-01T17:49:52.594Z"}
+5:50:31 PM [express] Received client message: {"type":"ping","timestamp":"2025-04-01T17:50:31.852Z","clientId":"ijfSgKKcGdM-09Con6u0O"}
+5:50:35 PM [express] Re-broadcasting agent status to 16 clients
+5:50:35 PM [express] WebSocket client disconnected
+5:50:35 PM [express] WebSocket client connected: /ws
+5:50:35 PM [express] Received client message: {"type":"client_connected","timestamp":"2025-04-01T17:50:35.364Z","clientId":"0IXAWXzih6oSz38bi1cVj"}
+5:50:35 PM [express] Received client_connected message, sending agent status
+5:50:35 PM [express] Sending status update to client: {"type":"agent_status","status":"completed","timestamp":"2025-04-01T17:50:35.448Z","message":"Agent service status update","lastRun":"2025-04-01T17:49:52.594Z"}
+5:50:36 PM [express] WebSocket client connected: /ws
+5:50:36 PM [express] Received client message: {"type":"client_connected","timestamp":"2025-04-01T17:50:36.361Z","clientId":"klJf8z1lHH4ssa2sxNIEC"}
+5:50:36 PM [express] Received client_connected message, sending agent status
+5:50:36 PM [express] Sending status update to client: {"type":"agent_status","status":"completed","timestamp":"2025-04-01T17:50:36.445Z","message":"Agent service status update","lastRun":"2025-04-01T17:49:52.594Z"}
+5:50:36 PM [express] Received client message: {"type":"ping","timestamp":"2025-04-01T17:50:36.367Z","clientId":"BabwyJOnq-_j4W4tM5-Ik"}
+5:50:36 PM [express] WebSocket client connected: /ws
+5:50:36 PM [express] Received client message: {"type":"client_connected","timestamp":"2025-04-01T17:50:36.667Z","clientId":"IuDXoWaxmzJbskys3egNx"}
+5:50:36 PM [express] Received client_connected message, sending agent status
+5:50:36 PM [express] Sending status update to client: {"type":"agent_status","status":"completed","timestamp":"2025-04-01T17:50:36.748Z","message":"Agent service status update","lastRun":"2025-04-01T17:49:52.594Z"}
+5:50:36 PM [express] Received client message: {"type":"ping","timestamp":"2025-04-01T17:50:36.659Z","clientId":"cd_-5LbIuKqQdobSmP3tA"}
+5:50:40 PM [express] Re-broadcasting agent status to 18 clients
+5:50:40 PM [express] WebSocket client disconnected
+5:50:40 PM [express] WebSocket client connected: /ws
+5:50:40 PM [express] Received client message: {"type":"client_connected","timestamp":"2025-04-01T17:50:40.362Z","clientId":"CtvFRXayxh8xPeJil_C_E"}
+5:50:40 PM [express] Received client_connected message, sending agent status
+5:50:40 PM [express] Sending status update to client: {"type":"agent_status","status":"completed","timestamp":"2025-04-01T17:50:40.448Z","message":"Agent service status update","lastRun":"2025-04-01T17:49:52.594Z"}
+5:50:41 PM [express] WebSocket client connected: /ws
+5:50:41 PM [express] Received client message: {"type":"client_connected","timestamp":"2025-04-01T17:50:41.367Z","clientId":"unBfYWFYfpBTmKaGGB7R6"}
+5:50:41 PM [express] Received client_connected message, sending agent status
+5:50:41 PM [express] Sending status update to client: {"type":"agent_status","status":"completed","timestamp":"2025-04-01T17:50:41.458Z","message":"Agent service status update","lastRun":"2025-04-01T17:49:52.594Z"}
+5:50:41 PM [express] Received client message: {"type":"ping","timestamp":"2025-04-01T17:50:41.424Z","clientId":"Q9doTz0RJzrnIrgcYCdi6"}
+5:50:41 PM [express] WebSocket client connected: /ws
+5:50:41 PM [express] Received client message: {"type":"client_connected","timestamp":"2025-04-01T17:50:41.669Z","clientId":"0IXAWXzih6oSz38bi1cVj"}
+5:50:41 PM [express] Received client_connected message, sending agent status
+5:50:41 PM [express] Sending status update to client: {"type":"agent_status","status":"completed","timestamp":"2025-04-01T17:50:41.752Z","message":"Agent service status update","lastRun":"2025-04-01T17:49:52.594Z"}
+5:50:41 PM [express] Received client message: {"type":"ping","timestamp":"2025-04-01T17:50:41.720Z","clientId":"07B1PPde8P_NijjvUt6y5"}
+5:50:45 PM [express] Re-broadcasting agent status to 20 clients
+5:50:45 PM [express] Received client message: {"type":"ping","timestamp":"2025-04-01T17:50:45.022Z","clientId":"WnY_bOFhdh2mfe4wkvYqJ"}
+5:50:45 PM [express] WebSocket client disconnected
+5:50:45 PM [express] WebSocket client connected: /ws
+5:50:45 PM [express] Received client message: {"type":"client_connected","timestamp":"2025-04-01T17:50:45.380Z","clientId":"nkPv4RL_jyaXh9d3yNir8"}
+5:50:45 PM [express] Received client_connected message, sending agent status
+5:50:45 PM [express] Sending status update to client: {"type":"agent_status","status":"completed","timestamp":"2025-04-01T17:50:45.471Z","message":"Agent service status update","lastRun":"2025-04-01T17:49:52.594Z"}
+5:50:46 PM [express] WebSocket client connected: /ws
+5:50:46 PM [express] Received client message: {"type":"ping","timestamp":"2025-04-01T17:50:46.373Z","clientId":"uNk7-Xe8ZEEXyg9l6qwD3"}
+5:50:46 PM [express] Received client message: {"type":"client_connected","timestamp":"2025-04-01T17:50:46.387Z","clientId":"7H-cHpiTE9d7JsUS0jKKN"}
+5:50:46 PM [express] Received client_connected message, sending agent status
+5:50:46 PM [express] Sending status update to client: {"type":"agent_status","status":"completed","timestamp":"2025-04-01T17:50:46.476Z","message":"Agent service status update","lastRun":"2025-04-01T17:49:52.594Z"}
+5:50:46 PM [express] WebSocket client connected: /ws
+5:50:46 PM [express] Received client message: {"type":"client_connected","timestamp":"2025-04-01T17:50:46.671Z","clientId":"CtvFRXayxh8xPeJil_C_E"}
+5:50:46 PM [express] Received client_connected message, sending agent status
+5:50:46 PM [express] Sending status update to client: {"type":"agent_status","status":"completed","timestamp":"2025-04-01T17:50:46.754Z","message":"Agent service status update","lastRun":"2025-04-01T17:49:52.594Z"}
+5:50:46 PM [express] Received client message: {"type":"ping","timestamp":"2025-04-01T17:50:46.680Z","clientId":"5kzrVPn7c_Bt4NDHr5-CH"}
+5:50:50 PM [express] Re-broadcasting agent status to 22 clients
+5:50:50 PM [express] WebSocket client disconnected
+5:50:50 PM [express] WebSocket client connected: /ws
+5:50:50 PM [express] Received client message: {"type":"client_connected","timestamp":"2025-04-01T17:50:50.383Z","clientId":"toKg02hspA8CZBAj9Ur6m"}
+5:50:50 PM [express] Received client_connected message, sending agent status
+5:50:50 PM [express] Sending status update to client: {"type":"agent_status","status":"completed","timestamp":"2025-04-01T17:50:50.471Z","message":"Agent service status update","lastRun":"2025-04-01T17:49:52.594Z"}
+5:50:51 PM [express] WebSocket client connected: /ws
+5:50:51 PM [express] Received client message: {"type":"client_connected","timestamp":"2025-04-01T17:50:51.378Z","clientId":"jojnSoOFCyvMlFv_AA_sH"}
+5:50:51 PM [express] Received client_connected message, sending agent status
+5:50:51 PM [express] Sending status update to client: {"type":"agent_status","status":"completed","timestamp":"2025-04-01T17:50:51.460Z","message":"Agent service status update","lastRun":"2025-04-01T17:49:52.594Z"}
+5:50:51 PM [express] Received client message: {"type":"ping","timestamp":"2025-04-01T17:50:51.385Z","clientId":"Div3GPbxrIESwpZse2g13"}
+5:50:51 PM [express] WebSocket client connected: /ws
+5:50:51 PM [express] Received client message: {"type":"client_connected","timestamp":"2025-04-01T17:50:51.708Z","clientId":"nkPv4RL_jyaXh9d3yNir8"}
+5:50:51 PM [express] Received client_connected message, sending agent status
+5:50:51 PM [express] Sending status update to client: {"type":"agent_status","status":"completed","timestamp":"2025-04-01T17:50:51.794Z","message":"Agent service status update","lastRun":"2025-04-01T17:49:52.594Z"}
+5:50:51 PM [express] Received client message: {"type":"ping","timestamp":"2025-04-01T17:50:51.693Z","clientId":"PhUC3O_LPIp38pzTySEnt"}
+5:50:55 PM [express] Re-broadcasting agent status to 24 clients
+5:50:55 PM [express] WebSocket client disconnected
+5:50:55 PM [express] WebSocket client connected: /ws
+5:50:55 PM [express] Received client message: {"type":"client_connected","timestamp":"2025-04-01T17:50:55.396Z","clientId":"fzZweWc-CYECtCcXcPY19"}
+5:50:55 PM [express] Received client_connected message, sending agent status
+5:50:55 PM [express] Sending status update to client: {"type":"agent_status","status":"completed","timestamp":"2025-04-01T17:50:55.481Z","message":"Agent service status update","lastRun":"2025-04-01T17:49:52.594Z"}
+5:50:56 PM [express] WebSocket client connected: /ws
+5:50:56 PM [express] Received client message: {"type":"client_connected","timestamp":"2025-04-01T17:50:56.369Z","clientId":"Z8UBBNsOxyQzRseeLLFY4"}
+5:50:56 PM [express] Received client_connected message, sending agent status
+5:50:56 PM [express] Sending status update to client: {"type":"agent_status","status":"completed","timestamp":"2025-04-01T17:50:56.451Z","message":"Agent service status update","lastRun":"2025-04-01T17:49:52.594Z"}
+5:50:56 PM [express] Received client message: {"type":"ping","timestamp":"2025-04-01T17:50:56.409Z","clientId":"06Ne3El2Otyza39wAZGoH"}
+5:50:56 PM [express] WebSocket client connected: /ws
+5:50:56 PM [express] Received client message: {"type":"client_connected","timestamp":"2025-04-01T17:50:56.681Z","clientId":"toKg02hspA8CZBAj9Ur6m"}
+5:50:56 PM [express] Received client_connected message, sending agent status
+5:50:56 PM [express] Sending status update to client: {"type":"agent_status","status":"completed","timestamp":"2025-04-01T17:50:56.765Z","message":"Agent service status update","lastRun":"2025-04-01T17:49:52.594Z"}
+5:50:56 PM [express] Received client message: {"type":"ping","timestamp":"2025-04-01T17:50:56.696Z","clientId":"32diNPptP0Api6MNyOYLV"}

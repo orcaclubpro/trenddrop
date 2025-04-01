@@ -92,9 +92,22 @@ function App() {
   // Use WebSocket hook for real-time updates
   const { status: wsStatus, messages } = useWebSocket(wsUrl);
   
+  // Debug WebSocket status for troubleshooting
+  useEffect(() => {
+    console.log(`WebSocket status changed: ${wsStatus}`);
+  }, [wsStatus]);
+
+  // Debug all received messages
+  useEffect(() => {
+    if (messages.length > 0) {
+      console.log('Messages received:', messages);
+    }
+  }, [messages]);
+  
   // Update app state based on WebSocket messages
   useEffect(() => {
     if (wsStatus === 'open') {
+      console.log('WebSocket connected, setting database as connected');
       // Set database as connected when WebSocket connects
       setAppState(prev => ({
         ...prev,
@@ -166,6 +179,22 @@ function App() {
   const loadingState = 
     appState.dbStatus === 'error' ? 'error' :
     appState.dbStatus === 'connecting' ? 'connecting' : 'initializing';
+
+  // FORCE INITIALIZATION TO DEBUG - Remove this in production
+  // This line is a temporary fix to force the app to initialize even with WebSocket issues
+  useEffect(() => {
+    const forceInit = setTimeout(() => {
+      console.log('Forcing initialization to debug the application...');
+      setAppState(prevState => ({
+        ...prevState,
+        initialized: true,
+        agentStatus: 'started',
+        message: 'Application forced ready for debugging'
+      }));
+    }, 3000); // Force init after 3 seconds
+    
+    return () => clearTimeout(forceInit);
+  }, []);
   
   return (
     <QueryClientProvider client={queryClient}>
