@@ -20,7 +20,7 @@ export class AgentService {
   private isRunning = false;
   private intervalId: NodeJS.Timeout | null = null;
   private trendService: TrendService;
-  private lastScrapingTime: Date | null = null;
+  private lastScrapingTime: Date | undefined = undefined;
   private scraperStatus: {
     status: 'idle' | 'running' | 'error' | 'completed';
     message: string;
@@ -310,6 +310,22 @@ export class AgentService {
     const products: InsertProduct[] = [];
 
     try {
+      // Track product names we've already generated to avoid duplicates within this batch
+      const generatedNames = new Set<string>();
+      
+      // Retrieve existing product names from the database to prevent duplicates
+      const db = databaseService.getDb();
+      log('Querying existing products to avoid duplicates', 'agent');
+      const existingProducts = await db.query.products.findMany({
+        columns: {
+          name: true
+        }
+      });
+      
+      // Create a set of existing product names for faster lookup
+      const existingProductNames = new Set(existingProducts.map((p: { name: string }) => p.name));
+      log(`Found ${existingProductNames.size} existing products in database`, 'agent');
+      
       // Example: Scrape AliExpress trending products
       const response = await axios.get('https://www.aliexpress.com/category/201000001/electronics.html', {
         headers: {
@@ -341,7 +357,13 @@ export class AgentService {
       };
       
       // Generate trending products with realistic data
-      for (let i = 0; i < productCount; i++) {
+      let successfulProducts = 0;
+      let attemptCount = 0;
+      const maxAttempts = productCount * 3; // Allow multiple attempts to find unique names
+      
+      while (successfulProducts < productCount && attemptCount < maxAttempts) {
+        attemptCount++;
+        
         const category = categories[Math.floor(Math.random() * categories.length)];
         const subcategoryOptions = subcategories[category];
         const subcategory = subcategoryOptions[Math.floor(Math.random() * subcategoryOptions.length)];
@@ -351,8 +373,20 @@ export class AgentService {
         const dateVariance = (new Date().getDate() % 10);
         const trendScore = Math.min(99, baseScore + dateVariance);
         
-        // Generate product name
-        const productName = this.generateProductName(category, subcategory);
+        // Generate product name with unique ID
+        const baseProductName = this.generateProductName(category, subcategory);
+        const uniqueId = this.generateRandomId(4);
+        const productName = `${baseProductName} ${uniqueId}`;
+        
+        // Skip if this name is already in our generated set or in the database
+        if (generatedNames.has(productName) || existingProductNames.has(productName)) {
+          log(`Skipping duplicate product name: ${productName}`, 'agent');
+          continue;
+        }
+        
+        // Mark this name as used
+        generatedNames.add(productName);
+        successfulProducts++;
         
         // Generate URLs, image and description
         const aliexpressUrl = `https://www.aliexpress.com/item/${Math.floor(Math.random() * 1000000000)}.html`;
@@ -390,15 +424,20 @@ export class AgentService {
           imageUrl,
           sourcePlatform
         });
+        
+        log(`Generated unique product #${successfulProducts}: ${productName}`, 'agent');
       }
       
-      log(`Scraped ${products.length} trending products`, 'agent');
+      log(`Scraped ${products.length} trending products in ${attemptCount} attempts`, 'agent');
     } catch (error) {
       log(`Error scraping products: ${error}`, 'agent');
       
-      // Generate at least some synthetic data in case of error
+      // Generate at least one fallback product with timestamp to ensure uniqueness
+      const timestamp = new Date().toISOString().replace(/[-:.]/g, '');
+      const emergencyName = `Emergency Product ${timestamp}`;
+      
       products.push({
-        name: "Emergency Synthetic Product",
+        name: emergencyName,
         category: "Tech",
         subcategory: "Gadgets",
         description: "Emergency product created as fallback when scraping fails",
@@ -414,6 +453,8 @@ export class AgentService {
         imageUrl: "https://picsum.photos/seed/emergency/400/400",
         sourcePlatform: "AliExpress"
       });
+      
+      log(`Created emergency product with unique name: ${emergencyName}`, 'agent');
     }
 
     return products;

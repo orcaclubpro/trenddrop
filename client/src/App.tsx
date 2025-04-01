@@ -68,7 +68,9 @@ function Router() {
 function App() {
   // Determine WebSocket URL based on current URL
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${wsProtocol}//${window.location.host}`;
+  const wsHost = window.location.host;
+  // For Replit, ensure we're using the correct port
+  const wsUrl = `${wsProtocol}//${wsHost}/ws`;
   
   // State to track application status
   const [appState, setAppState] = useState<{

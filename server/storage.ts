@@ -1,3 +1,4 @@
+import * as schema from "@shared/schema.js";
 import {
   users, type User, type InsertUser,
   products, type Product, type InsertProduct,
@@ -49,7 +50,7 @@ export class DbStorage implements IStorage {
     try {
       const db = databaseService.getDb();
       const result = await db.query.users.findFirst({
-        where: (users, { eq }) => eq(users.id, id)
+        where: (users: typeof schema.users.$inferSelect, { eq }: { eq: any }) => eq(users.id, id)
       });
       return result;
     } catch (error) {
@@ -62,7 +63,7 @@ export class DbStorage implements IStorage {
     try {
       const db = databaseService.getDb();
       const result = await db.query.users.findFirst({
-        where: (users, { eq }) => eq(users.username, username)
+        where: (users: typeof schema.users.$inferSelect, { eq }: { eq: any }) => eq(users.username, username)
       });
       return result;
     } catch (error) {
@@ -131,7 +132,7 @@ export class DbStorage implements IStorage {
     try {
       const db = databaseService.getDb();
       const result = await db.query.products.findFirst({
-        where: (products, { eq }) => eq(products.id, id)
+        where: (products: typeof schema.products.$inferSelect, { eq }: { eq: any }) => eq(products.id, id)
       });
       return result;
     } catch (error) {

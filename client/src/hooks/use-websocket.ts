@@ -28,6 +28,7 @@ export function useWebSocket(url: string) {
     
     // Create new WebSocket connection
     setStatus('connecting');
+    console.log(`Connecting to WebSocket at ${url}`);
     const socket = new WebSocket(url);
     socketRef.current = socket;
     
@@ -60,6 +61,7 @@ export function useWebSocket(url: string) {
     socket.onerror = (error) => {
       setStatus('error');
       console.error('WebSocket error:', error);
+      console.error(`WebSocket connection to ${url} failed`);
       
       // Close the socket and trigger reconnect
       socket.close();

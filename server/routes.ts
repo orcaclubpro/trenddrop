@@ -192,6 +192,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Add WebSocket route for the /ws endpoint referenced in the client
+  app.get('/ws', (req, res) => {
+    // This route exists to help clients discover the WebSocket endpoint
+    // The actual WebSocket server is attached to the HTTP server in index.ts
+    res.send('WebSocket endpoint available at this URL');
+  });
+
   // Create HTTP server with proper options for Replit environment
   const httpServer = createServer(app);
   
