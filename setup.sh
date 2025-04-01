@@ -1,24 +1,38 @@
+# Create a new file: setup.sh
+
 #!/bin/bash
 
-# Create required directories for TrendDrop
 echo "Setting up TrendDrop application..."
 
-# Create data directory for SQLite database
+# Create required directories
 mkdir -p data
-echo "Created data directory for database storage"
-
-# Create logs directory
 mkdir -p logs
-echo "Created logs directory"
+mkdir -p .env
 
-# Create migrations directory
-mkdir -p migrations
-echo "Created migrations directory"
+# Check if .env file exists, create if not
+if [ ! -f .env ]; then
+  echo "Creating default .env file..."
+  cat > .env << EOF
+# Database Configuration
+DATABASE_URL=file:./data/trenddrop.db
+# Uncomment the line below to use PostgreSQL
+# DATABASE_URL=postgresql://user:password@localhost:5432/trenddrop
 
-# Install required dependencies
+# Application Configuration
+PORT=5000
+SCRAPING_INTERVAL=3600000
+MAX_PRODUCTS=1000
+NODE_ENV=production
+EOF
+fi
+
+# Install dependencies
 echo "Installing dependencies..."
-npm install --save-exact better-sqlite3@9.4.1
-npm install --save-exact axios@1.6.2 jsdom@22.1.0 node-html-parser@6.1.12 ws@8.18.0 nanoid@5.0.4
-npm install --save-dev @types/better-sqlite3@7.6.8 @types/jsdom@21.1.6
+npm install
 
-echo "Setup completed successfully!"
+# Build the application for production
+echo "Building application..."
+npm run build
+
+echo "Setup complete! You can now run the application using:"
+echo "npm start"

@@ -1,49 +1,5 @@
-import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "./routes.js";
-import { setupVite, serveStatic, log } from "./vite.js";
-import databaseService from "./services/database-service.js";
-import { startAgentService } from "./services/agent-service.js";
-import WebSocket from "ws";
+// In server/index.ts - Modify the initializeApp function
 
-const MAX_RETRIES = Infinity; // Keep trying indefinitely
-const RETRY_INTERVAL = 10 * 60 * 1000; // 10 minutes in milliseconds
-
-const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
-
-// Set up logging middleware
-app.use((req, res, next) => {
-  const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      log(logLine);
-    }
-  });
-
-  next();
-});
-
-// Function to initialize the application with database retry logic
 async function initializeApp(retryCount = 0): Promise<void> {
   try {
     log(`Attempting database initialization (attempt ${retryCount + 1})...`);
@@ -59,17 +15,18 @@ async function initializeApp(retryCount = 0): Promise<void> {
       }
     }
 
-    // Database initialization successful, start the application
-    log("Database initialized successfully. Starting application...");
+    // Database initialization successful, now start the application
+    log("Database initialized successfully. Starting application services...");
     
+    // Register routes first
     const server = await registerRoutes(app);
 
+    // Setup error handling middleware
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
       const status = err.status || err.statusCode || 500;
       const message = err.message || "Internal Server Error";
-
       res.status(status).json({ message });
-      throw err;
+      console.error(`Error: ${err.message}`);
     });
 
     // Setup WebSocket server for real-time updates
@@ -83,8 +40,13 @@ async function initializeApp(retryCount = 0): Promise<void> {
       log("WebSocket client connected");
       clients.add(ws);
       
-      // Send initial data
-      ws.send(JSON.stringify({ type: "connected", message: "Successfully connected to TrendDrop real-time updates" }));
+      // Send initial state to client
+      ws.send(JSON.stringify({ 
+        type: "connection_established", 
+        message: "Connected to TrendDrop real-time updates",
+        databaseStatus: "connected",
+        agentStatus: "initializing"
+      }));
       
       ws.on("close", () => {
         log("WebSocket client disconnected");
@@ -100,19 +62,31 @@ async function initializeApp(retryCount = 0): Promise<void> {
     // Expose WebSocket clients to other modules
     (global as any).wsClients = clients;
 
-    // Only setup vite in development and after setting up the other routes
+    // Setup vite or static file serving
     if (app.get("env") === "development") {
       await setupVite(app, server);
     } else {
       serveStatic(app);
     }
 
-    // Start the product tracking agent after successful database initialization
+    // Start the product tracking agent AFTER successful database initialization
+    log("Starting agent service...");
     startAgentService();
+    
+    // Broadcast agent start to all connected clients
+    const startMessage = JSON.stringify({
+      type: "agent_status",
+      status: "started",
+      timestamp: new Date().toISOString()
+    });
+    
+    for (const client of clients) {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(startMessage);
+      }
+    }
 
-    // ALWAYS serve the app on port 5000
-    // this serves both the API and the client.
-    // It is the only port that is not firewalled.
+    // Start the server
     const port = 5000;
     server.listen({
       port,
@@ -132,6 +106,3 @@ async function initializeApp(retryCount = 0): Promise<void> {
     }
   }
 }
-
-// Start the application
-initializeApp();
