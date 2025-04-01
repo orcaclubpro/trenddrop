@@ -101,7 +101,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       // Get unique categories
-      const categories = [...new Set(allProducts.products.map(p => p.category))];
+      const categoriesSet = new Set<string>();
+      allProducts.products.forEach(p => categoriesSet.add(p.category));
+      const categories = Array.from(categoriesSet);
       res.json(categories);
     } catch (error) {
       console.error("Failed to get categories:", error);
@@ -156,7 +158,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const headers = [
         "ID", "Name", "Category", "Subcategory", 
         "Price Range", "Trend Score", "Engagement Rate", 
-        "Sales Velocity", "Search Volume", "Geographic Spread", "Supplier URL"
+        "Sales Velocity", "Search Volume", "Geographic Spread", 
+        "AliExpress URL", "CJ Dropshipping URL", "Source Platform"
       ];
       
       const rows = products.map(p => [
@@ -170,7 +173,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         p.salesVelocity,
         p.searchVolume,
         p.geographicSpread,
-        p.supplierUrl || ""
+        p.aliexpressUrl || "",
+        p.cjdropshippingUrl || "",
+        p.sourcePlatform || ""
       ]);
       
       const csv = [
@@ -187,6 +192,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Create HTTP server with proper options for Replit environment
   const httpServer = createServer(app);
+  
+  // Configure server timeout settings for better reliability
+  httpServer.timeout = 120000; // 2 minute timeout
+  httpServer.keepAliveTimeout = 60000; // 1 minute keep-alive
+  
   return httpServer;
 }

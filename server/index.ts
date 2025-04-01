@@ -1,4 +1,22 @@
-// In server/index.ts - Modify the initializeApp function
+import express, { Request, Response, NextFunction } from 'express';
+import { Server } from 'http';
+import WebSocket from 'ws';
+
+import { initializeDatabase } from './initialize.js';
+import { registerRoutes } from './routes.js';
+import databaseService from './services/database-service.js';
+import { startAgentService } from './services/agent-service.js';
+import { setupVite, serveStatic, log } from './vite.js';
+
+// Constants
+const MAX_RETRIES = 5;
+const RETRY_INTERVAL = 600000; // 10 minutes in milliseconds
+
+// Create Express app
+const app = express();
+
+// Initialize app
+initializeApp();
 
 async function initializeApp(retryCount = 0): Promise<void> {
   try {
@@ -16,7 +34,7 @@ async function initializeApp(retryCount = 0): Promise<void> {
     }
 
     // Database initialization successful, now start the application
-    log("Database initialized successfully. Starting application services...");
+    log("Database initialized successfully. Starting application...");
     
     // Register routes first
     const server = await registerRoutes(app);
@@ -80,20 +98,19 @@ async function initializeApp(retryCount = 0): Promise<void> {
       timestamp: new Date().toISOString()
     });
     
-    for (const client of clients) {
+    clients.forEach(client => {
       if (client.readyState === WebSocket.OPEN) {
         client.send(startMessage);
       }
-    }
+    });
 
     // Start the server
     const port = 5000;
     server.listen({
       port,
-      host: "0.0.0.0",
-      reusePort: true,
+      host: "0.0.0.0"
     }, () => {
-      log(`TrendDrop application running on port ${port}`);
+      log(`TrendDrop application running on port ${port} and host 0.0.0.0`);
     });
   } catch (error) {
     log(`Error initializing application: ${error}`);
@@ -106,3 +123,14 @@ async function initializeApp(retryCount = 0): Promise<void> {
     }
   }
 }
+
+// Handle exit signals
+process.on('SIGINT', () => {
+  log('Shutting down server...');
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  log('Shutting down server...');
+  process.exit(0);
+});

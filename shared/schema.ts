@@ -17,12 +17,13 @@ export const insertUserSchema = createInsertSchema(users).pick({
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
-// Product table with supplier URL
+// Product table with full dropshipping supply chain fields
 export const products = pgTable("products", {
   id: serial("id").primaryKey(),
-  name: text("name").notNull(),
+  name: text("name").notNull().unique(), // Added unique constraint for ON CONFLICT
   category: text("category").notNull(),
   subcategory: text("subcategory"),
+  description: text("description"),
   priceRangeLow: real("price_range_low").notNull(),
   priceRangeHigh: real("price_range_high").notNull(),
   trendScore: integer("trend_score").notNull(),
@@ -30,7 +31,10 @@ export const products = pgTable("products", {
   salesVelocity: integer("sales_velocity").notNull(),
   searchVolume: integer("search_volume").notNull(),
   geographicSpread: integer("geographic_spread").notNull(),
-  supplierUrl: text("supplier_url"), // Added supplier URL field
+  aliexpressUrl: text("aliexpress_url"),
+  cjdropshippingUrl: text("cjdropshipping_url"),
+  imageUrl: text("image_url"),
+  sourcePlatform: text("source_platform"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

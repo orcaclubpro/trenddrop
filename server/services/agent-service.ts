@@ -354,8 +354,12 @@ export class AgentService {
         // Generate product name
         const productName = this.generateProductName(category, subcategory);
         
-        // Generate supplier URL
-        const supplierUrl = `https://www.aliexpress.com/item/${Math.floor(Math.random() * 1000000000)}.html`;
+        // Generate URLs, image and description
+        const aliexpressUrl = `https://www.aliexpress.com/item/${Math.floor(Math.random() * 1000000000)}.html`;
+        const cjdropshippingUrl = `https://cjdropshipping.com/product/${Math.floor(Math.random() * 1000000)}.html`;
+        const imageUrl = `https://picsum.photos/seed/${this.generateRandomId(8)}/400/400`;
+        const description = `${productName} - ${subcategory} trending product for your dropshipping store. High-quality ${category.toLowerCase()} item with excellent customer satisfaction.`;
+        const sourcePlatform = ['AliExpress', 'TikTok', 'Instagram', 'Amazon', 'Facebook'][Math.floor(Math.random() * 5)];
         
         // Generate product metrics
         const engagementRate = Math.floor(trendScore * 0.5);
@@ -373,6 +377,7 @@ export class AgentService {
           name: productName,
           category,
           subcategory,
+          description,
           priceRangeLow,
           priceRangeHigh,
           trendScore,
@@ -380,7 +385,10 @@ export class AgentService {
           salesVelocity,
           searchVolume,
           geographicSpread,
-          supplierUrl
+          aliexpressUrl,
+          cjdropshippingUrl,
+          imageUrl,
+          sourcePlatform
         });
       }
       
@@ -393,6 +401,7 @@ export class AgentService {
         name: "Emergency Synthetic Product",
         category: "Tech",
         subcategory: "Gadgets",
+        description: "Emergency product created as fallback when scraping fails",
         priceRangeLow: 29.99,
         priceRangeHigh: 49.99,
         trendScore: 85,
@@ -400,7 +409,10 @@ export class AgentService {
         salesVelocity: 25,
         searchVolume: 18,
         geographicSpread: 7,
-        supplierUrl: "https://www.aliexpress.com/item/1005005832171462.html"
+        aliexpressUrl: "https://www.aliexpress.com/item/1005005832171462.html",
+        cjdropshippingUrl: "https://cjdropshipping.com/product/8675309.html",
+        imageUrl: "https://picsum.photos/seed/emergency/400/400",
+        sourcePlatform: "AliExpress"
       });
     }
 
