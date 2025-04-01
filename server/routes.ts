@@ -7,6 +7,7 @@ import { TrendService } from "./services/trend-service.js";
 import { VideoService } from "./services/video-service.js";
 import { log } from "./vite.js";
 import { getAgentStatus } from "./services/agent-service.js";
+import { initializeAIAgent, startAIAgent, stopAIAgent, getAIAgentStatus } from "./services/ai-agent-service.js";
 import { DatabaseService } from "./services/database-service.js";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -198,6 +199,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Health check endpoint with detailed system status
   app.get('/api/health', (req, res) => {
     const agentStatus = getAgentStatus();
+    const aiAgentStatus = getAIAgentStatus();
     res.json({
       status: 'ok',
       timestamp: new Date().toISOString(),
@@ -211,6 +213,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         lastRun: agentStatus.lastRun,
         nextRun: agentStatus.nextRun
       },
+      aiAgent: {
+        status: aiAgentStatus.status || 'idle',
+        isRunning: aiAgentStatus.isRunning || false,
+        productsFound: aiAgentStatus.productsFound || 0,
+        lastRun: aiAgentStatus.lastRun,
+        openai: aiAgentStatus.openai || false,
+        lmstudio: aiAgentStatus.lmstudio || false,
+        grok: aiAgentStatus.grok || false
+      },
       websocket: {
         connections: ((global as any).wsClients || new Set()).size
       }
@@ -223,6 +234,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
       pong: true,
       timestamp: new Date().toISOString()
     });
+  });
+  
+  // AI Agent API endpoints
+  // Initialize AI Agent
+  app.post('/api/ai-agent/initialize', async (req, res) => {
+    try {
+      log('Initializing AI Agent Service via API', 'api');
+      const success = await initializeAIAgent();
+      
+      if (success) {
+        res.status(200).json({
+          success: true,
+          message: 'AI Agent Service initialized successfully',
+          status: getAIAgentStatus()
+        });
+      } else {
+        res.status(500).json({
+          success: false,
+          message: 'Failed to initialize AI Agent Service',
+          status: getAIAgentStatus()
+        });
+      }
+    } catch (error) {
+      log(`Error initializing AI Agent: ${error}`, 'api');
+      res.status(500).json({
+        success: false,
+        message: `Error initializing AI Agent: ${error}`,
+        error: String(error)
+      });
+    }
+  });
+
+  // Start AI Agent
+  app.post('/api/ai-agent/start', async (req, res) => {
+    try {
+      log('Starting AI Agent Service via API', 'api');
+      // Initialize first if not already initialized
+      await initializeAIAgent();
+      
+      // Start the agent asynchronously
+      startAIAgent().catch(err => {
+        log(`Error in AI Agent background task: ${err}`, 'api');
+      });
+      
+      res.status(200).json({
+        success: true,
+        message: 'AI Agent Service started successfully',
+        status: getAIAgentStatus()
+      });
+    } catch (error) {
+      log(`Error starting AI Agent: ${error}`, 'api');
+      res.status(500).json({
+        success: false,
+        message: `Error starting AI Agent: ${error}`,
+        error: String(error)
+      });
+    }
+  });
+
+  // Stop AI Agent
+  app.post('/api/ai-agent/stop', (req, res) => {
+    try {
+      log('Stopping AI Agent Service via API', 'api');
+      stopAIAgent();
+      
+      res.status(200).json({
+        success: true,
+        message: 'AI Agent Service stopped successfully',
+        status: getAIAgentStatus()
+      });
+    } catch (error) {
+      log(`Error stopping AI Agent: ${error}`, 'api');
+      res.status(500).json({
+        success: false,
+        message: `Error stopping AI Agent: ${error}`,
+        error: String(error)
+      });
+    }
+  });
+
+  // Get AI Agent Status
+  app.get('/api/ai-agent/status', (req, res) => {
+    try {
+      const status = getAIAgentStatus();
+      
+      res.status(200).json({
+        success: true,
+        status
+      });
+    } catch (error) {
+      log(`Error getting AI Agent status: ${error}`, 'api');
+      res.status(500).json({
+        success: false,
+        message: `Error getting AI Agent status: ${error}`,
+        error: String(error)
+      });
+    }
   });
   
   // Add WebSocket route for the /ws endpoint referenced in the client

@@ -6,6 +6,7 @@ import { initializeDatabase } from './initialize.js';
 import { registerRoutes } from './routes.js';
 import databaseService from './services/database-service.js';
 import { startAgentService, getAgentStatus } from './services/agent-service.js';
+import { initializeAIAgent, getAIAgentStatus } from './services/ai-agent-service.js';
 import { setupVite, serveStatic, log } from './vite.js';
 
 // Constants
@@ -195,6 +196,32 @@ async function initializeApp(retryCount = 0): Promise<void> {
     // Start the product tracking agent AFTER successful database initialization
     log("Starting agent service...");
     startAgentService();
+    
+    // Initialize the AI Agent Service
+    log("Initializing AI Agent Service...");
+    initializeAIAgent().then(success => {
+      if (success) {
+        log("AI Agent Service initialized successfully");
+        // Broadcast AI agent status
+        const aiAgentStatus = getAIAgentStatus();
+        const aiStatusMessage = JSON.stringify({
+          type: "ai_agent_status",
+          status: "initialized",
+          timestamp: new Date().toISOString(),
+          aiAgentStatus
+        });
+        
+        clients.forEach(client => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(aiStatusMessage);
+          }
+        });
+      } else {
+        log("Failed to initialize AI Agent Service");
+      }
+    }).catch(error => {
+      log(`Error initializing AI Agent Service: ${error}`);
+    });
     
     // Broadcast agent start to all connected clients
     const startMessage = JSON.stringify({

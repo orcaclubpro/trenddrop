@@ -34,6 +34,7 @@ export default function ScrollingProductSidebar({ productId, onClose }: Scrollin
   const [minimized, setMinimized] = useState(false);
   const [activeSection, setActiveSection] = useState<string>('overview');
   const [animating, setAnimating] = useState(false);
+  const [closingTimeout, setClosingTimeout] = useState<NodeJS.Timeout | null>(null);
   
   // Determine WebSocket URL based on current URL
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -42,14 +43,18 @@ export default function ScrollingProductSidebar({ productId, onClose }: Scrollin
   // Use WebSocket hook for real-time updates
   const { messages } = useWebSocket(wsUrl);
   
-  // Query for product details
+  // Query for product details with clear retry and stale time
   const { 
     data: productDetails,
     isLoading,
-    isFetching
+    isFetching,
+    error
   } = useQuery<ProductWithDetails>({
     queryKey: [`/api/products/${productId}`],
     enabled: productId !== null,
+    staleTime: 30000, // Data stays fresh for 30 seconds
+    retryDelay: 1000,  // Retry after 1 second
+    retry: 3           // Retry 3 times before failing
   });
   
   // Animation effect when toggling minimized state
@@ -62,6 +67,22 @@ export default function ScrollingProductSidebar({ productId, onClose }: Scrollin
       return () => clearTimeout(timer);
     }
   }, [minimized]);
+  
+  // Log error for debugging
+  useEffect(() => {
+    if (error) {
+      console.error("Error loading product details:", error);
+    }
+  }, [error]);
+  
+  // Clean up timeouts when component unmounts
+  useEffect(() => {
+    return () => {
+      if (closingTimeout) {
+        clearTimeout(closingTimeout);
+      }
+    };
+  }, [closingTimeout]);
   
   // Listen for WebSocket messages for real-time updates
   useEffect(() => {
@@ -111,7 +132,22 @@ export default function ScrollingProductSidebar({ productId, onClose }: Scrollin
               <Button 
                 variant="ghost" 
                 size="icon" 
-                onClick={onClose}
+                onClick={(e) => {
+                  // Prevent the default action
+                  e.preventDefault();
+                  e.stopPropagation();
+                  
+                  // First set animating state
+                  setAnimating(true);
+                  // Then set minimized state to trigger animation
+                  setMinimized(true);
+                  // Set a timeout to call onClose after animation completes
+                  if (closingTimeout) clearTimeout(closingTimeout);
+                  const timeout = setTimeout(() => {
+                    onClose();
+                  }, 300); // Match with animation duration
+                  setClosingTimeout(timeout);
+                }}
                 className="h-8 w-8 rounded-full hover:bg-muted"
               >
                 <X className="h-4 w-4" />
