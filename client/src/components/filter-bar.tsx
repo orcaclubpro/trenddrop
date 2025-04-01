@@ -83,10 +83,10 @@ export default function FilterBar({ onFilterChange, onRefresh, onExport }: Filte
 
   const getFiltersContent = () => (
     <div className="flex flex-col gap-4 py-1">
-      <div className="space-y-1">
-        <p className="text-sm font-medium">Trend Score</p>
+      <div className="space-y-1.5">
+        <p className="text-sm font-medium text-gray-700">Trend Score</p>
         <Select value={trendScore} onValueChange={handleScoreChange}>
-          <SelectTrigger className="w-full">
+          <SelectTrigger className="w-full border-gray-200 bg-white">
             <SelectValue placeholder="Select Score" />
           </SelectTrigger>
           <SelectContent>
@@ -98,10 +98,10 @@ export default function FilterBar({ onFilterChange, onRefresh, onExport }: Filte
         </Select>
       </div>
       
-      <div className="space-y-1">
-        <p className="text-sm font-medium">Category</p>
+      <div className="space-y-1.5">
+        <p className="text-sm font-medium text-gray-700">Category</p>
         <Select value={category} onValueChange={handleCategoryChange}>
-          <SelectTrigger className="w-full">
+          <SelectTrigger className="w-full border-gray-200 bg-white">
             <SelectValue placeholder="Select Category" />
           </SelectTrigger>
           <SelectContent>
@@ -113,10 +113,10 @@ export default function FilterBar({ onFilterChange, onRefresh, onExport }: Filte
         </Select>
       </div>
       
-      <div className="space-y-1">
-        <p className="text-sm font-medium">Region</p>
+      <div className="space-y-1.5">
+        <p className="text-sm font-medium text-gray-700">Region</p>
         <Select value={region} onValueChange={handleRegionChange}>
-          <SelectTrigger className="w-full">
+          <SelectTrigger className="w-full border-gray-200 bg-white">
             <SelectValue placeholder="Select Region" />
           </SelectTrigger>
           <SelectContent>
@@ -128,7 +128,12 @@ export default function FilterBar({ onFilterChange, onRefresh, onExport }: Filte
         </Select>
       </div>
       
-      <Button variant="outline" size="sm" onClick={resetFilters} className="mt-2">
+      <Button 
+        variant="outline" 
+        size="sm" 
+        onClick={resetFilters} 
+        className="mt-2 border-gray-200 text-gray-600 hover:bg-gray-50"
+      >
         Reset Filters
       </Button>
     </div>
@@ -137,33 +142,35 @@ export default function FilterBar({ onFilterChange, onRefresh, onExport }: Filte
   // Mobile version uses a popover for all filters
   if (isMobile) {
     return (
-      <div className="bg-background border-b border-border p-3 flex items-center justify-between sticky top-0 z-10">
+      <div className="bg-white shadow-sm p-4 flex items-center justify-between sticky top-0 z-10">
         <Popover>
           <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className="relative">
+            <Button variant="outline" size="sm" className="relative border-gray-200 text-gray-700">
               <Filter className="h-4 w-4 mr-2" />
               Filters
               {activeFiltersCount > 0 && (
-                <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center">
+                <Badge className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center bg-blue-500">
                   {activeFiltersCount}
                 </Badge>
               )}
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-72 p-4">
+          <PopoverContent className="w-72 p-4 border border-gray-100 shadow-md rounded-md">
             <div className="flex items-center justify-between mb-4">
-              <h4 className="font-medium">Filter Products</h4>
-              <Badge variant="outline">{activeFiltersCount} active</Badge>
+              <h4 className="font-medium text-gray-700">Filter Products</h4>
+              <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200">
+                {activeFiltersCount} active
+              </Badge>
             </div>
             {getFiltersContent()}
           </PopoverContent>
         </Popover>
         
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={onRefresh} title="Refresh">
+          <Button variant="outline" size="icon" onClick={onRefresh} title="Refresh" className="border-gray-200 text-gray-600">
             <RefreshCw className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={onExport} title="Export Data">
+          <Button variant="default" size="icon" onClick={onExport} title="Export Data">
             <Download className="h-4 w-4" />
           </Button>
         </div>
@@ -173,16 +180,16 @@ export default function FilterBar({ onFilterChange, onRefresh, onExport }: Filte
 
   // Desktop version shows filters inline
   return (
-    <div className="bg-background border-b border-border p-3 md:flex items-center justify-between">
-      <div className="flex items-center gap-4">
-        <div className="flex items-center">
-          <SlidersHorizontal className="h-4 w-4 mr-2 text-muted-foreground" />
-          <span className="text-sm font-medium">Filters:</span>
+    <div className="bg-white shadow-sm py-4 px-6 md:flex items-center justify-between">
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="flex items-center mr-2">
+          <SlidersHorizontal className="h-4 w-4 mr-2 text-gray-500" />
+          <span className="text-sm font-medium text-gray-700">Filters</span>
         </div>
         
         <div className="inline-flex items-center gap-2">
           <Select value={trendScore} onValueChange={handleScoreChange}>
-            <SelectTrigger className="w-[160px] h-9">
+            <SelectTrigger className="w-[160px] h-9 border-gray-200 bg-white">
               <SelectValue placeholder="Trend Score" />
             </SelectTrigger>
             <SelectContent>
@@ -196,7 +203,7 @@ export default function FilterBar({ onFilterChange, onRefresh, onExport }: Filte
         
         <div className="inline-flex items-center gap-2">
           <Select value={category} onValueChange={handleCategoryChange}>
-            <SelectTrigger className="w-[180px] h-9">
+            <SelectTrigger className="w-[180px] h-9 border-gray-200 bg-white">
               <SelectValue placeholder="Category" />
             </SelectTrigger>
             <SelectContent>
@@ -210,7 +217,7 @@ export default function FilterBar({ onFilterChange, onRefresh, onExport }: Filte
         
         <div className="inline-flex items-center gap-2">
           <Select value={region} onValueChange={handleRegionChange}>
-            <SelectTrigger className="w-[160px] h-9">
+            <SelectTrigger className="w-[160px] h-9 border-gray-200 bg-white">
               <SelectValue placeholder="Region" />
             </SelectTrigger>
             <SelectContent>
@@ -223,7 +230,7 @@ export default function FilterBar({ onFilterChange, onRefresh, onExport }: Filte
         </div>
         
         {activeFiltersCount > 0 && (
-          <Button variant="ghost" size="sm" onClick={resetFilters} className="h-9">
+          <Button variant="ghost" size="sm" onClick={resetFilters} className="h-9 text-gray-600">
             Clear All
           </Button>
         )}
@@ -234,7 +241,7 @@ export default function FilterBar({ onFilterChange, onRefresh, onExport }: Filte
           variant="outline" 
           size="sm" 
           onClick={onRefresh}
-          className="h-9"
+          className="h-9 border-gray-200"
         >
           <RefreshCw className="h-4 w-4 mr-2" />
           Refresh
