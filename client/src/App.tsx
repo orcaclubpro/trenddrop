@@ -1,10 +1,10 @@
 import { Route, Switch } from 'wouter';
 import { Suspense, lazy } from 'react';
-import { Dashboard } from '@/pages/Dashboard';
-import { Layout } from '@/components/navigation/Layout';
+import Layout from '@/components/navigation/Layout';
 import { LoadingScreen } from '@/components/ui/loading-screen';
 
 // Lazy-loaded pages for better performance
+const Dashboard = lazy(() => import('@/pages/Dashboard'));
 const ProductDetail = lazy(() => import('@/pages/ProductDetail'));
 const Categories = lazy(() => import('@/pages/Categories'));
 const Regions = lazy(() => import('@/pages/Regions'));
@@ -22,7 +22,7 @@ export default function App() {
           </Route>
           <Route path="/categories" component={Categories} />
           <Route path="/regions" component={Regions} />
-          <Route path="/agent" component={AgentControl} />
+          <Route path="/agent-control" component={AgentControl} />
           <Route component={NotFound} />
         </Switch>
       </Suspense>

@@ -6,8 +6,8 @@
 
 import WebSocket from 'ws';
 import { eq, sql } from 'drizzle-orm';
-import * as schema from '@shared/schema.js';
-import { Product, InsertProduct, InsertTrend, InsertRegion, InsertVideo } from '@shared/schema.js';
+import * as schema from '../../../shared/schema.js';
+import { Product, InsertProduct, InsertTrend, InsertRegion, InsertVideo } from '../../../shared/schema.js';
 import { log } from '../../vite.js';
 import { DiscoveredProduct, AgentStatus } from './interfaces.js';
 import llmService from './llm-service.js';

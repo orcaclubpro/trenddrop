@@ -1,49 +1,62 @@
-// API endpoints
+/**
+ * API endpoints for interacting with the backend
+ */
 export const API = {
-  DASHBOARD: '/api/dashboard',
+  BASE: '/api',
   PRODUCTS: '/api/products',
+  GET_PRODUCT: (id: number) => `/api/products/${id}`,
+  TRENDING_PRODUCTS: '/api/products/trending',
+  PRODUCTS_BY_CATEGORY: (category: string) => `/api/products/category/${category}`,
+  PRODUCTS_BY_REGION: (region: string) => `/api/products/region/${region}`,
   CATEGORIES: '/api/categories',
   REGIONS: '/api/regions',
+  TRENDS: '/api/trends',
+  TRENDS_FOR_PRODUCT: (productId: number) => `/api/trends/product/${productId}`,
+  VIDEOS: '/api/videos',
+  VIDEOS_FOR_PRODUCT: (productId: number) => `/api/videos/product/${productId}`,
+  REGIONS_FOR_PRODUCT: (productId: number) => `/api/regions/product/${productId}`,
+  DASHBOARD: '/api/dashboard',
   EXPORT: '/api/export',
+  EXPORT_PRODUCT: (id: number) => `/api/export/product/${id}`,
   HEALTH: '/api/health',
-  PING: '/api/ping',
-  AI_AGENT: {
-    INITIALIZE: '/api/ai-agent/initialize',
-    START: '/api/ai-agent/start',
-    STOP: '/api/ai-agent/stop',
-    STATUS: '/api/ai-agent/status',
-  },
-  WEBSOCKET: 'ws://localhost:5000/ws',
+  AI_AGENT: '/api/agent',
+  WEBSOCKET: (window.location.protocol === 'https:' ? 'wss:' : 'ws:') + 
+             '//' + window.location.host + '/ws'
 };
 
-// Chart colors for consistency
-export const CHART_COLORS = {
-  ENGAGEMENT: 'hsl(var(--chart-1))',
-  SALES: 'hsl(var(--chart-2))',
-  SEARCH: 'hsl(var(--chart-3))',
-  GEOGRAPHIC: 'hsl(var(--chart-4))',
-  TREND: 'hsl(var(--chart-5))',
+/**
+ * Websocket message types
+ */
+export const WS_MESSAGE_TYPES = {
+  CLIENT_CONNECTED: 'client_connected',
+  CLIENT_DISCONNECTED: 'client_disconnected',
+  AGENT_STATUS: 'agent_status',
+  PRODUCT_UPDATED: 'product_updated'
 };
 
-// Default pagination settings
+/**
+ * Default page size for pagination
+ */
 export const DEFAULT_PAGE_SIZE = 10;
 
-// Trend score ranges for visual indicators
-export const TREND_SCORE_RANGES = {
-  LOW: { min: 0, max: 30, color: 'text-yellow-500' },
-  MEDIUM: { min: 31, max: 70, color: 'text-blue-500' },
-  HIGH: { min: 71, max: 100, color: 'text-green-500' },
-};
+/**
+ * Trend score ranges for visualization
+ */
+export const TREND_SCORE_RANGES = [
+  { min: 0, max: 20, label: 'Very Low' },
+  { min: 21, max: 40, label: 'Low' },
+  { min: 41, max: 60, label: 'Medium' },
+  { min: 61, max: 80, label: 'High' },
+  { min: 81, max: 100, label: 'Very High' }
+];
 
-// Date format for display
-export const DATE_FORMAT = 'MMM dd, yyyy';
-
-// WebSocket message types
-export const WS_MESSAGE_TYPES = {
-  CONNECTION_ESTABLISHED: 'connection_established',
-  CLIENT_CONNECTED: 'client_connected',
-  AGENT_STATUS: 'agent_status',
-  NEW_PRODUCT: 'new_product',
-  PRODUCT_UPDATE: 'product_update',
-  DATABASE_STATUS: 'database_status',
+/**
+ * Chart colors for different metrics
+ */
+export const CHART_COLORS = {
+  TREND: '#3b82f6',       // Blue
+  ENGAGEMENT: '#10b981',  // Green
+  SALES: '#8b5cf6',       // Purple
+  SEARCH: '#f59e0b',      // Amber
+  GEOGRAPHIC: '#ef4444'   // Red
 };

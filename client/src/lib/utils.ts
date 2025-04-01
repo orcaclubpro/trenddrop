@@ -1,146 +1,147 @@
-import { type ClassValue, clsx } from "clsx";
+import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { format, formatDistanceToNow, parseISO } from "date-fns";
-import { TREND_SCORE_RANGES, DATE_FORMAT } from "./constants";
 
 /**
- * Combines class names using clsx and tailwind-merge
+ * Utility function to merge multiple class names with Tailwind classes
  */
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
 /**
+ * Formats a date in a human-readable format
+ */
+export function formatDate(date: Date | string): string {
+  if (!date) return '';
+  
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  }).format(d);
+}
+
+/**
  * Formats a number as currency
  */
-export function formatCurrency(value: number): string {
+export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
-  }).format(value);
+    minimumFractionDigits: 2
+  }).format(amount);
 }
 
 /**
- * Formats a number with K, M, B suffixes
+ * Formats a number with commas and specified decimal places
  */
-export function formatCompactNumber(value: number): string {
+export function formatNumber(num: number, decimals = 0): string {
   return new Intl.NumberFormat('en-US', {
-    notation: 'compact',
-    maximumFractionDigits: 1,
-  }).format(value);
+    maximumFractionDigits: decimals,
+    minimumFractionDigits: decimals
+  }).format(num);
 }
 
 /**
- * Formats a percentage (0-100)
+ * Truncates a string to a specified length with ellipsis
  */
-export function formatPercentage(value: number): string {
-  return `${Math.round(value)}%`;
+export function truncateString(str: string, length = 30): string {
+  if (!str) return '';
+  if (str.length <= length) return str;
+  
+  return `${str.substring(0, length)}...`;
 }
 
 /**
- * Gets the color class for a trend score
+ * Generates a random color from a string (consistent hash)
  */
-export function getTrendScoreColor(score: number): string {
-  if (score >= TREND_SCORE_RANGES.HIGH.min) {
-    return TREND_SCORE_RANGES.HIGH.color;
-  } else if (score >= TREND_SCORE_RANGES.MEDIUM.min) {
-    return TREND_SCORE_RANGES.MEDIUM.color;
+export function stringToColor(str: string): string {
+  if (!str) return '#6366f1'; // Default indigo color
+  
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  
+  let color = '#';
+  for (let i = 0; i < 3; i++) {
+    const value = (hash >> (i * 8)) & 0xFF;
+    color += ('00' + value.toString(16)).substr(-2);
+  }
+  
+  return color;
+}
+
+/**
+ * Gets the initials from a name string
+ */
+export function getInitials(name: string): string {
+  if (!name) return '';
+  
+  return name
+    .split(' ')
+    .map(part => part.charAt(0))
+    .join('')
+    .toUpperCase()
+    .substring(0, 2);
+}
+
+/**
+ * Formats large numbers with k, m, b suffixes
+ */
+export function formatCompactNumber(num: number): string {
+  if (num < 1000) {
+    return num.toString();
+  } else if (num < 1000000) {
+    return (num / 1000).toFixed(1) + 'k';
+  } else if (num < 1000000000) {
+    return (num / 1000000).toFixed(1) + 'm';
   } else {
-    return TREND_SCORE_RANGES.LOW.color;
+    return (num / 1000000000).toFixed(1) + 'b';
   }
 }
 
 /**
- * Formats a date string using date-fns
+ * Delays execution for specified milliseconds
  */
-export function formatDate(dateString: string): string {
-  try {
-    return format(parseISO(dateString), DATE_FORMAT);
-  } catch (error) {
-    return dateString;
+export function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Calculates time ago from a given date
+ */
+export function timeAgo(date: Date | string): string {
+  if (!date) return '';
+  
+  const d = typeof date === 'string' ? new Date(date) : date;
+  const seconds = Math.floor((new Date().getTime() - d.getTime()) / 1000);
+  
+  let interval = seconds / 31536000;
+  if (interval > 1) {
+    return Math.floor(interval) + ' years ago';
   }
-}
-
-/**
- * Formats a date as relative time (e.g., "2 hours ago")
- */
-export function formatRelativeTime(dateString: string): string {
-  try {
-    return formatDistanceToNow(parseISO(dateString), { addSuffix: true });
-  } catch (error) {
-    return dateString;
+  
+  interval = seconds / 2592000;
+  if (interval > 1) {
+    return Math.floor(interval) + ' months ago';
   }
-}
-
-/**
- * Creates a debounced function
- */
-export function debounce<T extends (...args: any[]) => any>(
-  func: T, 
-  wait: number
-): (...args: Parameters<T>) => void {
-  let timeout: ReturnType<typeof setTimeout> | null = null;
   
-  return function(...args: Parameters<T>) {
-    if (timeout) {
-      clearTimeout(timeout);
-    }
-    timeout = setTimeout(() => func(...args), wait);
-  };
-}
-
-/**
- * Truncates a string to a maximum length with ellipsis
- */
-export function truncateString(str: string, maxLength: number): string {
-  if (str.length <= maxLength) return str;
-  return `${str.slice(0, maxLength)}...`;
-}
-
-/**
- * Returns the browser's WebSocket implementation or undefined if not supported
- */
-export function getWebSocketSupport(): typeof WebSocket | undefined {
-  return typeof WebSocket !== 'undefined' ? WebSocket : undefined;
-}
-
-/**
- * Exports data as CSV
- */
-export function exportAsCSV(data: any[], filename: string): void {
-  if (!data.length) return;
+  interval = seconds / 86400;
+  if (interval > 1) {
+    return Math.floor(interval) + ' days ago';
+  }
   
-  // Get headers from first object
-  const headers = Object.keys(data[0]);
+  interval = seconds / 3600;
+  if (interval > 1) {
+    return Math.floor(interval) + ' hours ago';
+  }
   
-  // Convert data to CSV rows
-  const csvRows = [
-    headers.join(','), // Header row
-    ...data.map(row => 
-      headers
-        .map(header => {
-          const cell = row[header];
-          // Handle strings with commas and quotes
-          if (typeof cell === 'string' && (cell.includes(',') || cell.includes('"'))) {
-            return `"${cell.replace(/"/g, '""')}"`;
-          }
-          return cell;
-        })
-        .join(',')
-    ),
-  ];
+  interval = seconds / 60;
+  if (interval > 1) {
+    return Math.floor(interval) + ' minutes ago';
+  }
   
-  // Create CSV content
-  const csvContent = csvRows.join('\n');
-  
-  // Create download link
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.setAttribute('href', url);
-  link.setAttribute('download', `${filename}.csv`);
-  link.style.visibility = 'hidden';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  return Math.floor(seconds) + ' seconds ago';
 }
