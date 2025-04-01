@@ -35,9 +35,9 @@ export default function ProductDashboard({ products, isRefreshing, onSelectProdu
   
   const scoreColorClass = (score: number) => {
     if (score >= 90) return 'text-emerald-500';
-    if (score >= 80) return 'text-green-500';
-    if (score >= 70) return 'text-blue-500';
-    if (score >= 60) return 'text-yellow-500';
+    if (score >= 80) return 'text-blue-500';
+    if (score >= 70) return 'text-indigo-500';
+    if (score >= 60) return 'text-amber-500';
     return 'text-gray-400';
   };
   
@@ -63,40 +63,23 @@ export default function ProductDashboard({ products, isRefreshing, onSelectProdu
   
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-bold text-primary-900 dark:text-primary-100 flex items-center">
-          <TrendingUp className="h-5 w-5 mr-2 text-primary" />
-          Trending Products
-        </h2>
-        <div className="flex items-center gap-4">
-          <Tabs value={activeView} onValueChange={setActiveView} className="w-auto">
-            <TabsList className="bg-primary/10">
-              <TabsTrigger 
-                value="grid" 
-                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-              >
-                <BarChart3 className="h-4 w-4 mr-1" />
-                Grid View
-              </TabsTrigger>
-              <TabsTrigger 
-                value="table" 
-                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-              >
-                <Globe className="h-4 w-4 mr-1" />
-                Table View
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-          <Button 
-            onClick={onRefresh} 
-            disabled={isRefreshing}
-            variant="outline"
-            size="sm"
-            className="border-primary/20 hover:bg-primary/5 hover:border-primary/30"
-          >
-            {isRefreshing ? 'Refreshing...' : 'Refresh'}
-          </Button>
-        </div>
+      <div className="flex items-center justify-end mb-4">
+        <Tabs value={activeView} onValueChange={setActiveView} className="w-auto">
+          <TabsList className="bg-background border border-border">
+            <TabsTrigger 
+              value="grid" 
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >
+              <BarChart3 className="h-4 w-4" />
+            </TabsTrigger>
+            <TabsTrigger 
+              value="table" 
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >
+              <Globe className="h-4 w-4" />
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
       
       <Tabs value={activeView} className="w-full">
@@ -105,51 +88,48 @@ export default function ProductDashboard({ products, isRefreshing, onSelectProdu
             {displayProducts.map(product => (
               <Card 
                 key={product.id} 
-                className="overflow-hidden cursor-pointer border-primary/20 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/10 transition-all"
+                className="overflow-hidden cursor-pointer border-border hover:border-primary hover:shadow-md transition-all"
                 onClick={() => onSelectProduct(product)}
               >
-                <CardHeader className="pb-2 border-b border-primary/10">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <Badge className="mb-2 bg-primary/10 text-primary hover:bg-primary/15">{product.category}</Badge>
-                      <CardTitle className="text-lg">{product.name}</CardTitle>
+                <div className="relative h-40 overflow-hidden">
+                  {product.imageUrl ? (
+                    <img 
+                      src={product.imageUrl} 
+                      alt={product.name} 
+                      className="object-cover w-full h-full"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-muted/50 flex items-center justify-center">
+                      <Pocket className="h-16 w-16 text-muted" />
                     </div>
-                    <TrendScoreRing score={product.trendScore} size={50} thickness={5} />
+                  )}
+                  <div className="absolute top-2 left-2">
+                    <Badge className="bg-background/90 text-foreground hover:bg-background/95 backdrop-blur-sm">{product.category}</Badge>
                   </div>
-                </CardHeader>
-                <CardContent className="pt-4">
-                  <div className="relative h-40 mb-4 bg-primary/5 rounded-md overflow-hidden flex items-center justify-center">
-                    {product.imageUrl ? (
-                      <img 
-                        src={product.imageUrl} 
-                        alt={product.name} 
-                        className="object-cover w-full h-full"
-                      />
-                    ) : (
-                      <Pocket className="h-16 w-16 text-primary/20" />
-                    )}
+                  <div className="absolute top-2 right-2">
+                    <TrendScoreRing score={product.trendScore} size={40} thickness={4} />
                   </div>
+                </div>
+                
+                <CardContent className="p-4">
+                  <h3 className="font-medium text-foreground mb-2 line-clamp-1">{product.name}</h3>
                   
-                  <div className="grid grid-cols-2 gap-2 text-sm mb-3">
-                    <div className="bg-primary/5 p-2 rounded-md">
-                      <div className="text-primary/70 mb-1 flex items-center gap-1">
-                        <ShoppingCart className="h-3 w-3" /> Price Range
-                      </div>
-                      <div className="font-medium">
+                  <div className="grid grid-cols-2 gap-3 text-sm mb-3">
+                    <div className="flex flex-col">
+                      <span className="text-xs text-muted-foreground">Price</span>
+                      <span className="font-medium">
                         {formatCurrency(product.priceRangeLow)} - {formatCurrency(product.priceRangeHigh)}
-                      </div>
+                      </span>
                     </div>
-                    <div className="bg-primary/5 p-2 rounded-md">
-                      <div className="text-primary/70 mb-1 flex items-center gap-1">
-                        <TrendingUp className="h-3 w-3" /> Trend Score
-                      </div>
-                      <div className={`font-medium ${scoreColorClass(product.trendScore)}`}>
+                    <div className="flex flex-col">
+                      <span className="text-xs text-muted-foreground">Score</span>
+                      <span className={`font-medium ${scoreColorClass(product.trendScore)}`}>
                         {product.trendScore}/100 ({getScoreLabel(product.trendScore)})
-                      </div>
+                      </span>
                     </div>
                   </div>
                   
-                  <div className="flex flex-wrap gap-2 mt-2">
+                  <div className="flex flex-wrap gap-1.5 mt-2">
                     {product.aliexpressUrl && (
                       <a 
                         href={product.aliexpressUrl} 
@@ -172,8 +152,8 @@ export default function ProductDashboard({ products, isRefreshing, onSelectProdu
                         CJ <ExternalLink className="h-3 w-3" />
                       </a>
                     )}
-                    <span className="text-xs flex items-center gap-1 px-2 py-1 bg-primary/5 text-primary/70 rounded-full">
-                      {product.sourcePlatform} <ArrowUpRight className="h-3 w-3" />
+                    <span className="text-xs flex items-center gap-1 px-2 py-1 bg-muted/80 text-muted-foreground rounded-full">
+                      {product.sourcePlatform}
                     </span>
                   </div>
                 </CardContent>
@@ -183,28 +163,27 @@ export default function ProductDashboard({ products, isRefreshing, onSelectProdu
         </TabsContent>
         
         <TabsContent value="table" className="w-full">
-          <div className="rounded-md border border-primary/20 overflow-hidden">
+          <div className="rounded-md border border-border overflow-hidden">
             <table className="w-full">
               <thead>
-                <tr className="bg-primary/5">
-                  <th className="p-3 text-left font-medium text-primary">Product</th>
-                  <th className="p-3 text-left font-medium text-primary">Category</th>
-                  <th className="p-3 text-left font-medium text-primary">Price Range</th>
-                  <th className="p-3 text-left font-medium text-primary">Trend Score</th>
-                  <th className="p-3 text-left font-medium text-primary">Source</th>
-                  <th className="p-3 text-left font-medium text-primary">Links</th>
+                <tr className="bg-muted/30">
+                  <th className="p-3 text-left font-medium text-foreground">Product</th>
+                  <th className="p-3 text-left font-medium text-foreground">Category</th>
+                  <th className="p-3 text-left font-medium text-foreground">Price Range</th>
+                  <th className="p-3 text-left font-medium text-foreground">Trend Score</th>
+                  <th className="p-3 text-left font-medium text-foreground">Wholesaler Links</th>
                 </tr>
               </thead>
               <tbody>
                 {displayProducts.map(product => (
                   <tr 
                     key={product.id} 
-                    className="border-t border-primary/10 cursor-pointer hover:bg-primary/5 transition-colors"
+                    className="border-t border-border cursor-pointer hover:bg-muted/20 transition-colors"
                     onClick={() => onSelectProduct(product)}
                   >
                     <td className="p-3">
-                      <div className="flex items-center gap-2">
-                        <div className="h-10 w-10 rounded-md bg-primary/5 flex items-center justify-center overflow-hidden">
+                      <div className="flex items-center gap-3">
+                        <div className="h-11 w-11 rounded-md bg-muted flex items-center justify-center overflow-hidden">
                           {product.imageUrl ? (
                             <img 
                               src={product.imageUrl} 
@@ -212,10 +191,10 @@ export default function ProductDashboard({ products, isRefreshing, onSelectProdu
                               className="h-full w-full object-cover"
                             />
                           ) : (
-                            <Pocket className="h-5 w-5 text-primary/20" />
+                            <Pocket className="h-5 w-5 text-muted-foreground/50" />
                           )}
                         </div>
-                        <div className="font-medium">{product.name}</div>
+                        <div className="font-medium line-clamp-1 max-w-[200px]">{product.name}</div>
                       </div>
                     </td>
                     <td className="p-3">
@@ -226,14 +205,11 @@ export default function ProductDashboard({ products, isRefreshing, onSelectProdu
                     </td>
                     <td className="p-3">
                       <div className="flex items-center gap-2">
-                        <TrendScoreRing score={product.trendScore} size={30} thickness={3} />
+                        <TrendScoreRing score={product.trendScore} size={28} thickness={3} />
                         <span className={scoreColorClass(product.trendScore)}>
-                          {product.trendScore}
+                          {product.trendScore} ({getScoreLabel(product.trendScore)})
                         </span>
                       </div>
-                    </td>
-                    <td className="p-3">
-                      {product.sourcePlatform}
                     </td>
                     <td className="p-3">
                       <div className="flex gap-2">
@@ -242,7 +218,7 @@ export default function ProductDashboard({ products, isRefreshing, onSelectProdu
                             href={product.aliexpressUrl} 
                             target="_blank" 
                             rel="noreferrer"
-                            className="text-xs flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-full hover:bg-primary/20 transition-colors"
+                            className="text-xs flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-md hover:bg-primary/20 transition-colors"
                             onClick={(e) => e.stopPropagation()}
                           >
                             AliExpress <ExternalLink className="h-3 w-3" />
@@ -253,7 +229,7 @@ export default function ProductDashboard({ products, isRefreshing, onSelectProdu
                             href={product.cjdropshippingUrl} 
                             target="_blank" 
                             rel="noreferrer"
-                            className="text-xs flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-full hover:bg-primary/20 transition-colors"
+                            className="text-xs flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-md hover:bg-primary/20 transition-colors"
                             onClick={(e) => e.stopPropagation()}
                           >
                             CJ <ExternalLink className="h-3 w-3" />
@@ -274,7 +250,6 @@ export default function ProductDashboard({ products, isRefreshing, onSelectProdu
           <Button 
             onClick={loadMore} 
             variant="outline"
-            className="border-primary/20 hover:bg-primary/5 hover:border-primary/30"
           >
             <ArrowUpRight className="mr-2 h-4 w-4" />
             Load More Products

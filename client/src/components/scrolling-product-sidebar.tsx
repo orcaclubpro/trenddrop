@@ -83,36 +83,36 @@ export default function ScrollingProductSidebar({ productId, onClose }: Scrollin
   
   return (
     <div className={cn(
-      "fixed left-0 top-0 h-full transform transition-all duration-300 ease-in-out z-40",
+      "fixed right-0 top-0 h-full transform transition-all duration-300 ease-in-out z-40",
       minimized 
         ? "w-16 sm:w-20" 
-        : "w-[90vw] sm:w-[450px]"
+        : "w-[90vw] sm:w-[450px] md:w-[500px]"
     )}>
       {/* Sidebar toggle button */}
       <div 
-        className="absolute right-0 top-1/2 -translate-y-1/2 transform translate-x-1/2 z-50 cursor-pointer"
+        className="absolute left-0 top-1/2 -translate-y-1/2 transform -translate-x-1/2 z-50 cursor-pointer"
         onClick={() => setMinimized(!minimized)}
       >
         <div className="bg-primary text-primary-foreground p-2 rounded-full shadow-lg">
-          {minimized ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
+          {minimized ? <ChevronLeft className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
         </div>
       </div>
 
       {/* Sidebar content */}
-      <div className="h-full overflow-hidden flex flex-col bg-background border-r border-border shadow-lg">
+      <div className="h-full overflow-hidden flex flex-col bg-background border-l border-border shadow-lg">
         {/* Header */}
-        <div className="p-4 border-b border-border flex justify-between items-center bg-primary/5">
+        <div className="p-4 border-b border-border flex justify-between items-center bg-background">
           {!minimized ? (
             <>
               <h3 className="font-medium text-primary flex items-center">
                 <TrendingUp className="h-4 w-4 mr-2" />
-                Product Insights
+                Product Details
               </h3>
               <Button 
                 variant="ghost" 
                 size="icon" 
                 onClick={onClose}
-                className="h-8 w-8 rounded-full hover:bg-primary/10"
+                className="h-8 w-8 rounded-full hover:bg-muted"
               >
                 <X className="h-4 w-4" />
               </Button>
@@ -429,58 +429,136 @@ export default function ScrollingProductSidebar({ productId, onClose }: Scrollin
               {activeSection === 'videos' && (
                 <>
                   <div>
-                    <h3 className="text-sm font-medium mb-3">Marketing Videos</h3>
-                    <p className="text-xs text-muted-foreground mb-4">
-                      Discover videos that are successfully promoting this product.
-                    </p>
-                    
-                    <div className="space-y-4">
-                      {videos && videos.length > 0 ? (
-                        videos.map(video => (
-                          <VideoCard key={video.id} video={video} />
-                        ))
-                      ) : (
-                        <div className="bg-primary/5 rounded-md p-4 text-center text-sm text-muted-foreground">
-                          No videos available for this product.
-                        </div>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-medium">Marketing Videos</h3>
+                      {videos && videos.length > 0 && (
+                        <Badge variant="outline" className="text-xs font-normal bg-primary/5">
+                          {videos.length} videos
+                        </Badge>
                       )}
                     </div>
+                    <p className="text-xs text-muted-foreground mb-4">
+                      Available marketing videos for this product. Click to play or download.
+                    </p>
+                    
+                    {videos && videos.length > 0 ? (
+                      <div className="grid grid-cols-1 gap-4">
+                        {videos.map(video => (
+                          <VideoCard key={video.id} video={video} />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="border border-border rounded-md p-6 text-center">
+                        <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-muted/50 flex items-center justify-center">
+                          <PlayCircle className="h-6 w-6 text-muted-foreground/60" />
+                        </div>
+                        <h4 className="text-sm font-medium mb-1">No videos available</h4>
+                        <p className="text-xs text-muted-foreground">
+                          This product doesn't have any marketing videos yet.
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* Video statistics summary */}
+                    {videos && videos.length > 0 && (
+                      <div className="mt-6 grid grid-cols-2 gap-3">
+                        <Card className="overflow-hidden border border-border">
+                          <CardContent className="p-3">
+                            <div className="flex items-center gap-2">
+                              <div className="bg-primary/10 text-primary rounded-full p-2">
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  width="16"
+                                  height="16"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                  <circle cx="12" cy="12" r="3" />
+                                </svg>
+                              </div>
+                              <div>
+                                <div className="text-xs text-muted-foreground">Total Views</div>
+                                <div className="font-medium">
+                                  {videos.reduce((acc, vid) => acc + vid.views, 0).toLocaleString()}
+                                </div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                        
+                        <Card className="overflow-hidden border border-border">
+                          <CardContent className="p-3">
+                            <div className="flex items-center gap-2">
+                              <div className="bg-primary/10 text-primary rounded-full p-2">
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  width="16"
+                                  height="16"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                                </svg>
+                              </div>
+                              <div>
+                                <div className="text-xs text-muted-foreground">Most Popular</div>
+                                <div className="font-medium">
+                                  {videos.length > 0 ? videos.reduce((prev, curr) => prev.views > curr.views ? prev : curr).platform : ''}
+                                </div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    )}
                   </div>
                 </>
               )}
             </div>
 
             {/* Footer actions */}
-            <div className="p-4 border-t border-border flex justify-between items-center bg-primary/5">
-              <div className="flex gap-2">
-                {product.aliexpressUrl && (
-                  <a 
-                    href={product.aliexpressUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center px-3 py-2 border border-border rounded-md text-xs hover:bg-primary/10 transition-colors"
-                  >
-                    <ExternalLink className="h-3.5 w-3.5 mr-1" />
-                    AliExpress
-                  </a>
-                )}
-                {product.cjdropshippingUrl && (
-                  <a 
-                    href={product.cjdropshippingUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center px-3 py-2 border border-border rounded-md text-xs hover:bg-primary/10 transition-colors"
-                  >
-                    <ExternalLink className="h-3.5 w-3.5 mr-1" />
-                    CJ Dropship
-                  </a>
-                )}
+            <div className="p-4 border-t border-border flex justify-between items-center bg-background">
+              <div className="grid grid-cols-1 gap-2 w-full">
+                <div className="text-xs text-muted-foreground mb-1">Wholesaler Links:</div>
+                <div className="flex gap-2 w-full">
+                  {product.aliexpressUrl && (
+                    <a 
+                      href={product.aliexpressUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center px-3 py-2 border border-border bg-background hover:bg-muted rounded-md text-xs flex-1 transition-colors"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                      AliExpress
+                    </a>
+                  )}
+                  {product.cjdropshippingUrl && (
+                    <a 
+                      href={product.cjdropshippingUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center px-3 py-2 border border-border bg-background hover:bg-muted rounded-md text-xs flex-1 transition-colors"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                      CJ Dropship
+                    </a>
+                  )}
+                </div>
+                
+                <Button size="sm" className="w-full mt-2">
+                  <ShoppingCart className="h-3.5 w-3.5 mr-1.5" />
+                  <span>Add to Dropshipping List</span>
+                </Button>
               </div>
-              
-              <Button size="sm" className="gap-1">
-                <ShoppingCart className="h-3.5 w-3.5" />
-                <span>Add to List</span>
-              </Button>
             </div>
           </>
         )}

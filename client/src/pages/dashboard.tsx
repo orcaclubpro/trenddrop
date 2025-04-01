@@ -145,11 +145,11 @@ export default function Dashboard() {
   
   return (
     <>
-      <header className="bg-background border-b border-border flex items-center justify-between p-4 md:p-6">
+      <header className="bg-background border-b border-border shadow-sm flex items-center justify-between p-4 md:p-6">
         <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-primary">TrendDrop</h1>
           <p className="text-sm text-muted-foreground">
-            View and analyze trending products to enhance your dropshipping strategy.
+            Real-time dropshipping intelligence dashboard
           </p>
         </div>
         
@@ -187,7 +187,7 @@ export default function Dashboard() {
       
       {/* Show real-time progress if scraper is running */}
       {isScraperRunning && (
-        <div className="bg-background border-b border-border">
+        <div className="bg-background border-b border-border shadow-sm">
           <div className="max-w-7xl mx-auto px-4 py-3">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
               <div className="flex flex-col justify-center">
@@ -242,7 +242,7 @@ export default function Dashboard() {
             </div>
             
             <div className="text-xs">
-              <Button variant="ghost" size="sm" className="h-6 text-xs px-2 text-primary" onClick={handleRefresh}>
+              <Button variant="outline" size="sm" className="h-6 text-xs px-2" onClick={handleRefresh}>
                 <RefreshCw className="h-3 w-3 mr-1" />
                 Refresh Data
               </Button>
@@ -253,7 +253,7 @@ export default function Dashboard() {
       
       {/* Show placeholder content if database is empty and no scraper running */}
       {isDatabaseEmpty && !isScraperRunning ? (
-        <div className="flex-1 flex items-center justify-center p-6 bg-muted/30">
+        <div className="flex-1 flex items-center justify-center p-6 bg-background">
           <div className="max-w-3xl w-full p-8 bg-background rounded-xl border shadow-sm">
             <div className="flex flex-col items-center text-center">
               <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mb-6">
@@ -309,18 +309,31 @@ export default function Dashboard() {
           </div>
         </div>
       ) : (
-        <>
-          <FilterBar 
-            onFilterChange={handleFilterChange} 
-            onRefresh={handleRefresh} 
-            onExport={handleExport} 
-          />
-          
-          <div className="flex-1 p-6 bg-muted/30 overflow-auto">
-            <div className="max-w-[1800px] mx-auto">
+        <div className="flex flex-col md:flex-row h-[calc(100vh-56px)]">
+          <div className="flex-1 overflow-hidden flex flex-col">
+            <div className="bg-background p-4 border-b border-border">
               <MetricsSummary />
-              
-              <div className="flex-1">
+            </div>
+            
+            <div className="flex-1 overflow-auto bg-background">
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold text-primary flex items-center">
+                    <TrendingUp className="h-5 w-5 mr-2" />
+                    Latest Products
+                  </h2>
+                  <Button 
+                    onClick={handleRefresh} 
+                    variant="outline" 
+                    size="sm"
+                    className="text-xs"
+                    disabled={isRefreshing}
+                  >
+                    <RefreshCw className="h-3 w-3 mr-1.5" />
+                    {isRefreshing ? 'Refreshing...' : 'Refresh Data'}
+                  </Button>
+                </div>
+                
                 <ProductDashboard 
                   products={(productsData?.products || [])} 
                   onSelectProduct={handleSelectProduct} 
@@ -328,17 +341,17 @@ export default function Dashboard() {
                   onRefresh={handleRefresh}
                 />
               </div>
-              
-              {/* Use the new scrolling sidebar component instead of the static detail panel */}
-              {selectedProductId && (
-                <ScrollingProductSidebar 
-                  productId={selectedProductId}
-                  onClose={() => setSelectedProductId(null)} 
-                />
-              )}
             </div>
           </div>
-        </>
+          
+          {/* Fixed position sidebar for product details */}
+          {selectedProductId && (
+            <ScrollingProductSidebar 
+              productId={selectedProductId}
+              onClose={() => setSelectedProductId(null)} 
+            />
+          )}
+        </div>
       )}
       
       {/* Error message if the scraper encountered an error */}
