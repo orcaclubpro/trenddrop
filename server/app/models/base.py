@@ -1,4 +1,11 @@
-from sqlalchemy import Column, Integer, DateTime, func
+"""
+Base model module for TrendDrop - Trendtracker
+
+This module provides a base model with timestamp fields.
+"""
+
+from sqlalchemy import Column, Integer, DateTime
+from sqlalchemy.sql import func
 
 class TimeStampedBase:
     """Base class that includes created_at and updated_at fields"""

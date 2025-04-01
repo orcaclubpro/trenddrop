@@ -1,36 +1,41 @@
-import os
+"""
+Scraper routes module for TrendDrop - Trendtracker
+
+This module provides API routes for controlling the scraper agent.
+"""
+
 import asyncio
-import datetime
 import logging
+import os
 from typing import Optional, Dict, Any
+
 from fastapi import APIRouter, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from app.db.database import get_db
-from app.models.product import Product
-from app.services.agents.tdSCRAPER import start_scraper_agent
+from server.app.db.database import get_db
+from server.app.services.agents.tdSCRAPER import TDScraper
+from server.app.models.product import Product
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Global variables to track scraper status
-scraper_running = False
-scraper_progress = 0
-scraper_total_found = 0
-scraper_total_products = 0
-scraper_error = None
-scraper_last_run = None
-scraper_next_run = None
-scraper_scheduler_active = False
-scheduler_task = None
+# Create router
+router = APIRouter(prefix="/scraper", tags=["scraper"])
 
-# Configuration
-MAX_PRODUCTS = int(os.environ.get('MAX_PRODUCTS', '1000'))
-AUTO_START_THRESHOLD = 10  # Auto-start if fewer than this many products in DB
+# Global variables to track status
+SCRAPER_RUNNING = False
+SCRAPER_PROGRESS = 0
+SCRAPER_TOTAL_STEPS = 100
+SCRAPER_FOUND_COUNT = 0
+SCRAPER_ERROR = None
+SCRAPER_LAST_RUN = None
+SCRAPER_NEXT_RUN = None
+SCHEDULER_ACTIVE = False
+SCHEDULER_TASK = None
 
-router = APIRouter()
+# Get maximum number of products from environment variable
+MAX_PRODUCTS = int(os.getenv("MAX_PRODUCTS", "1000"))
 
 @router.post("/start")
 async def start_scraper(
@@ -49,54 +54,67 @@ async def start_scraper(
     Returns:
         dict: Job status
     """
-    global scraper_running, scraper_progress, scraper_total_found, scraper_error
+    global SCRAPER_RUNNING, SCRAPER_ERROR
     
-    if scraper_running and not force:
-        return {"status": "error", "message": "Scraper is already running"}
-    
-    # Use configured max products if none provided
-    if count is None:
-        count = MAX_PRODUCTS
-    
+    # Check if already running
+    if SCRAPER_RUNNING and not force:
+        return {
+            "status": "error",
+            "message": "Scraper is already running",
+            "running": True,
+            "progress": SCRAPER_PROGRESS,
+            "total_found": SCRAPER_FOUND_COUNT
+        }
+        
     # Reset status
-    scraper_running = True
-    scraper_progress = 0
-    scraper_total_found = 0
-    scraper_error = None
+    SCRAPER_ERROR = None
+    SCRAPER_RUNNING = True
     
-    # Add the scraper task to background tasks
-    background_tasks.add_task(run_scraper_task, count, db)
+    # Start scraper task in background
+    background_tasks.add_task(run_scraper_task, count or MAX_PRODUCTS, db)
     
-    logger.info(f"Scraper started with target of {count} products")
-    return {"status": "started", "message": f"Scraper started with target of {count} products"}
+    return {
+        "status": "success",
+        "message": f"Scraper started, looking for {count or MAX_PRODUCTS} products",
+        "running": True,
+        "progress": 0,
+        "total_found": 0
+    }
 
 async def run_scraper_task(count, db):
     """Run the scraper task and update global status variables"""
-    global scraper_running, scraper_progress, scraper_total_found, scraper_error, scraper_last_run, scraper_next_run
+    global SCRAPER_RUNNING, SCRAPER_PROGRESS, SCRAPER_TOTAL_STEPS
+    global SCRAPER_FOUND_COUNT, SCRAPER_ERROR, SCRAPER_LAST_RUN
     
     try:
-        # Call the scraper agent
-        logger.info(f"Starting scraper agent to find up to {count} products")
-        result = await start_scraper_agent(count, db, progress_callback=update_progress)
+        logger.info(f"Starting scraper task to find up to {count} products")
         
-        scraper_total_found = result.get("total_found", 0)
-        scraper_error = None
-        scraper_last_run = datetime.datetime.now()
-        scraper_next_run = scraper_last_run + datetime.timedelta(hours=1)
+        # Create scraper agent with progress callback
+        scraper = TDScraper(db, max_products=count, progress_callback=update_progress)
         
-        logger.info(f"Scraper finished. Found {scraper_total_found} products.")
+        # Run the scraper
+        found_count = await scraper.run()
+        
+        # Update global status
+        SCRAPER_FOUND_COUNT = found_count
+        SCRAPER_PROGRESS = 100
+        SCRAPER_LAST_RUN = func.now()
+        
+        logger.info(f"Scraper task completed, found {found_count} products")
+        
     except Exception as e:
-        scraper_error = str(e)
-        logger.error(f"Scraper error: {e}")
+        logger.error(f"Scraper task failed: {e}")
+        SCRAPER_ERROR = str(e)
     finally:
-        scraper_running = False
-        
+        SCRAPER_RUNNING = False
+
 def update_progress(current, total, found):
     """Callback to update scraper progress from the agent"""
-    global scraper_progress, scraper_total_found
-    scraper_progress = int((current / total) * 100)
-    scraper_total_found = found
-    logger.debug(f"Progress update: {scraper_progress}%, Found: {found} products")
+    global SCRAPER_PROGRESS, SCRAPER_TOTAL_STEPS, SCRAPER_FOUND_COUNT
+    
+    SCRAPER_PROGRESS = int((current / total) * 100)
+    SCRAPER_TOTAL_STEPS = total
+    SCRAPER_FOUND_COUNT = found
 
 @router.get("/status")
 async def get_scraper_status(db: Session = Depends(get_db)):
@@ -106,25 +124,18 @@ async def get_scraper_status(db: Session = Depends(get_db)):
     Returns:
         dict: Current status
     """
-    global scraper_running, scraper_progress, scraper_total_found, scraper_error
-    global scraper_last_run, scraper_next_run, scraper_scheduler_active, scraper_total_products
-    
-    # Get total product count from database
-    try:
-        scraper_total_products = db.query(func.count(Product.id)).scalar() or 0
-    except Exception as e:
-        logger.error(f"Error getting product count: {e}")
-        scraper_total_products = 0
+    # Get product count from database
+    product_count = db.query(func.count(Product.id)).scalar() or 0
     
     return {
-        "running": scraper_running,
-        "progress": scraper_progress,
-        "total_found": scraper_total_found,
-        "total_products": scraper_total_products,
-        "error": scraper_error,
-        "last_run": scraper_last_run.isoformat() if scraper_last_run else None,
-        "next_run": scraper_next_run.isoformat() if scraper_next_run else None,
-        "scheduler_active": scraper_scheduler_active
+        "running": SCRAPER_RUNNING,
+        "progress": SCRAPER_PROGRESS,
+        "total_found": SCRAPER_FOUND_COUNT,
+        "total_products": product_count,
+        "error": SCRAPER_ERROR,
+        "last_run": SCRAPER_LAST_RUN,
+        "next_run": SCRAPER_NEXT_RUN,
+        "scheduler_active": SCHEDULER_ACTIVE
     }
 
 @router.post("/stop")
@@ -135,14 +146,12 @@ async def stop_scraper():
     Returns:
         dict: Status message
     """
-    global scraper_running
-    
-    if not scraper_running:
-        return {"status": "error", "message": "No scraper job is currently running"}
-    
-    # This would stop the scraper process if we had a way to do that
-    # For now, just report that we don't support this
-    return {"status": "error", "message": "Stopping a running scraper is not yet implemented"}
+    # This would be implemented to stop a running scraper job
+    # For now, it's just a placeholder
+    return {
+        "status": "error",
+        "message": "Stopping scraper jobs not implemented yet"
+    }
 
 @router.post("/schedule")
 async def schedule_scraper(
@@ -159,65 +168,99 @@ async def schedule_scraper(
     Returns:
         dict: Scheduler status
     """
-    global scraper_scheduler_active, scheduler_task
+    global SCHEDULER_ACTIVE, SCHEDULER_TASK, SCRAPER_NEXT_RUN
     
-    if active and not scraper_scheduler_active:
-        scraper_scheduler_active = True
-        background_tasks.add_task(start_scheduler, db)
-        return {"status": "enabled", "message": "Scraper scheduler has been enabled"}
-    elif not active and scraper_scheduler_active:
-        scraper_scheduler_active = False
-        return {"status": "disabled", "message": "Scraper scheduler has been disabled"}
+    if active:
+        # Start scheduler if not already active
+        if not SCHEDULER_ACTIVE:
+            SCHEDULER_ACTIVE = True
+            SCRAPER_NEXT_RUN = "In about 1 hour"
+            background_tasks.add_task(start_scheduler, db)
+            return {
+                "status": "success",
+                "message": "Scheduler activated, scraper will run every hour",
+                "active": True
+            }
+        else:
+            return {
+                "status": "info",
+                "message": "Scheduler is already active",
+                "active": True
+            }
     else:
-        status = "enabled" if scraper_scheduler_active else "disabled"
-        return {"status": status, "message": f"Scraper scheduler is already {status}"}
+        # Stop scheduler
+        SCHEDULER_ACTIVE = False
+        SCRAPER_NEXT_RUN = None
+        
+        # Cancel the task if it's running
+        if SCHEDULER_TASK and not SCHEDULER_TASK.done():
+            SCHEDULER_TASK.cancel()
+            
+        return {
+            "status": "success",
+            "message": "Scheduler deactivated",
+            "active": False
+        }
 
 async def start_scheduler(db):
     """Start the scheduler that runs the scraper every hour"""
-    global scraper_scheduler_active, scraper_next_run
+    global SCHEDULER_TASK, SCHEDULER_ACTIVE, SCRAPER_NEXT_RUN
     
     logger.info("Starting scraper scheduler")
     
-    if scraper_next_run is None:
-        scraper_next_run = datetime.datetime.now() + datetime.timedelta(hours=1)
-    
-    # Loop while scheduler is active
-    while scraper_scheduler_active:
-        now = datetime.datetime.now()
-        
-        # Run if it's time for next run
-        if scraper_next_run and now >= scraper_next_run and not scraper_running:
-            logger.info("Scheduler triggering scraper run")
-            # Start the scraper
-            asyncio.create_task(run_scraper_task(MAX_PRODUCTS, db))
-            # Wait for initial setup
-            await asyncio.sleep(1)
-        
-        # Sleep for a minute before checking again
-        await asyncio.sleep(60)
-    
-    logger.info("Scraper scheduler stopped")
+    while SCHEDULER_ACTIVE:
+        try:
+            # Check if we need to run the scraper
+            await check_and_start_scraper_if_needed(db)
+            
+            # Wait for an hour
+            for minute in range(60):
+                if not SCHEDULER_ACTIVE:
+                    break
+                    
+                # Update next run time (only if still active)
+                if SCHEDULER_ACTIVE:
+                    minutes_left = 60 - minute
+                    SCRAPER_NEXT_RUN = f"In about {minutes_left} minute{'s' if minutes_left != 1 else ''}"
+                    
+                await asyncio.sleep(60)  # Sleep for a minute
+                
+        except asyncio.CancelledError:
+            logger.info("Scheduler task cancelled")
+            break
+        except Exception as e:
+            logger.error(f"Error in scheduler: {e}")
+            await asyncio.sleep(60)  # Sleep for a minute before retrying
+            
+    logger.info("Scheduler stopped")
 
-# Check database on startup and start scraper if needed
 async def check_and_start_scraper_if_needed(db: Session):
     """
     Checks if database has enough products and starts scraper if needed
     """
-    global scraper_running, scraper_scheduler_active
+    global SCRAPER_RUNNING, SCRAPER_ERROR
     
+    # Skip if scraper is already running
+    if SCRAPER_RUNNING:
+        return
+        
     try:
+        # Check current product count
         product_count = db.query(func.count(Product.id)).scalar() or 0
-        logger.info(f"Database has {product_count} products")
         
-        # Start the scheduler regardless
-        if not scraper_scheduler_active:
-            scraper_scheduler_active = True
-            asyncio.create_task(start_scheduler(db))
-            logger.info("Automatic scheduler started")
-        
-        # If we have fewer than the threshold, start the scraper
-        if product_count < AUTO_START_THRESHOLD and not scraper_running:
-            logger.info(f"Found only {product_count} products (below threshold of {AUTO_START_THRESHOLD}). Auto-starting scraper.")
-            asyncio.create_task(run_scraper_task(MAX_PRODUCTS, db))
+        # If we have fewer than MAX_PRODUCTS, start the scraper
+        if product_count < MAX_PRODUCTS:
+            logger.info(f"Scheduler: Only have {product_count} products, starting scraper")
+            
+            # Reset status and start scraper
+            SCRAPER_ERROR = None
+            SCRAPER_RUNNING = True
+            
+            # Run scraper directly (not in background)
+            await run_scraper_task(MAX_PRODUCTS, db)
+        else:
+            logger.info(f"Scheduler: Already have {product_count} products, not starting scraper")
+            
     except Exception as e:
-        logger.error(f"Error during auto-start check: {e}")
+        logger.error(f"Error checking products: {e}")
+        SCRAPER_ERROR = str(e)

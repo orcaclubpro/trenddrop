@@ -6,13 +6,16 @@ Run this script before starting the application for the first time.
 """
 
 import logging
+import os
+import sys
+
 from sqlalchemy_utils import database_exists, create_database
 
-from app.db.database import engine, Base
-from app.models.product import Product
-from app.models.trend import Trend
-from app.models.region import Region
-from app.models.video import Video
+# Add the project root to the Python path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from server.app.db.database import engine, Base
+from server.app.models import Product, Trend, Region, Video
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -22,17 +25,26 @@ def init_db():
     """
     Initialize the database by creating all tables
     """
-    logger.info("Initializing database...")
-    
-    # Create database if it doesn't exist
-    if not database_exists(engine.url):
-        create_database(engine.url)
-        logger.info(f"Created database at {engine.url}")
-    
-    # Create tables
-    logger.info("Creating tables...")
-    Base.metadata.create_all(bind=engine)
-    logger.info("Database tables created successfully")
+    try:
+        # Check if database exists, create if it doesn't
+        if not database_exists(engine.url):
+            create_database(engine.url)
+            logger.info(f"Created database at {engine.url}")
+        
+        # Create tables
+        Base.metadata.create_all(bind=engine)
+        logger.info("Database tables created successfully")
+        return True
+    except Exception as e:
+        logger.error(f"Database initialization failed: {e}")
+        return False
 
 if __name__ == "__main__":
-    init_db()
+    logger.info("Initializing database...")
+    success = init_db()
+    
+    if success:
+        logger.info("Database initialization completed successfully")
+    else:
+        logger.error("Database initialization failed")
+        sys.exit(1)

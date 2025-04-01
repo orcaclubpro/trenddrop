@@ -1,2 +1,5 @@
-# app/services/__init__.py
-# This file intentionally left blank to mark the directory as a Python package.
+"""
+Services package for TrendDrop - Trendtracker
+
+This package contains service components like the scraper agent.
+"""

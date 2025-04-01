@@ -1,394 +1,356 @@
-import os
-import logging
+"""
+TDScraper Agent module for TrendDrop - Trendtracker
+
+This module provides a simulated scraper agent for finding trending products.
+In a production environment, this would be replaced with a real scraper
+that uses grok with lmstudio for web searching capabilities.
+"""
+
 import asyncio
+import logging
 import random
 import datetime
 from typing import List, Dict, Any, Callable, Optional
 from sqlalchemy.orm import Session
 
-from app.models.product import Product
-from app.models.trend import Trend
-from app.models.region import Region
-from app.models.video import Video
+from server.app.models.product import Product
+from server.app.models.trend import Trend
+from server.app.models.region import Region
+from server.app.models.video import Video
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Constants for API keys and service URLs
-LMSTUDIO_API_URL = os.environ.get('LMSTUDIO_API_URL', 'http://localhost:1234/v1')
-LMSTUDIO_API_KEY = os.environ.get('LMSTUDIO_API_KEY', '')
+# Sample data for simulation
+SAMPLE_CATEGORIES = [
+    "Electronics", "Home & Kitchen", "Fashion", "Beauty", "Toys & Games",
+    "Sports & Outdoors", "Health & Wellness", "Pet Supplies", "Baby", "Jewelry"
+]
 
-# Define types for clarity
-ProgressCallback = Callable[[int, int, int], None]
+SAMPLE_SUBCATEGORIES = {
+    "Electronics": ["Smartphone Accessories", "Smart Home", "Wearables", "Audio", "Gadgets"],
+    "Home & Kitchen": ["Kitchen Gadgets", "Home Decor", "Organization", "Bedding", "Bath"],
+    "Fashion": ["Accessories", "Clothing", "Footwear", "Bags", "Watches"],
+    "Beauty": ["Skincare", "Makeup", "Hair Care", "Fragrance", "Tools"],
+    "Toys & Games": ["Educational", "Puzzles", "Action Figures", "Board Games", "Outdoor"],
+    "Sports & Outdoors": ["Fitness", "Camping", "Water Sports", "Team Sports", "Cycling"],
+    "Health & Wellness": ["Supplements", "Personal Care", "Fitness Trackers", "Massage", "Aromatherapy"],
+    "Pet Supplies": ["Dog Accessories", "Cat Toys", "Pet Grooming", "Food & Treats", "Beds & Furniture"],
+    "Baby": ["Feeding", "Diapering", "Toys", "Clothing", "Travel Gear"],
+    "Jewelry": ["Necklaces", "Earrings", "Bracelets", "Rings", "Sets"]
+}
 
-class TdScraper:
+SAMPLE_PRODUCT_NAMES = {
+    "Electronics": ["Magnetic Phone Mount", "Smart LED Strip", "Foldable Wireless Charger", "Mini Projector", "Bluetooth Earbuds"],
+    "Home & Kitchen": ["Milk Frother", "Vegetable Chopper", "Silicone Baking Mats", "Digital Kitchen Scale", "Sous Vide Cooker"],
+    "Fashion": ["Minimalist Watch", "Crossbody Phone Bag", "Stackable Rings", "Cloud Slippers", "Bamboo Socks"],
+    "Beauty": ["Jade Face Roller", "Vitamin C Serum", "Hair Growth Oil", "Eyebrow Stamp", "Makeup Eraser Cloth"],
+    "Toys & Games": ["Magnetic Building Blocks", "Water Drawing Mat", "LED Drone", "Wooden Puzzle Set", "Slime Kit"],
+    "Sports & Outdoors": ["Resistance Bands Set", "Foldable Water Bottle", "Yoga Wheel", "Jump Rope", "Hiking Socks"],
+    "Health & Wellness": ["Sleep Mask", "Digital Body Scale", "Posture Corrector", "Acupressure Mat", "Essential Oil Diffuser"],
+    "Pet Supplies": ["Pet Hair Remover", "Slow Feeder Bowl", "Automatic Toy", "Grooming Glove", "Pet Water Fountain"],
+    "Baby": ["Silicone Teether", "Sound Machine", "Diaper Caddy", "Baby Food Maker", "Swaddle Blanket"],
+    "Jewelry": ["Layered Necklace", "Huggie Earrings", "Minimalist Bracelet", "Birthstone Ring", "Anklet"]
+}
+
+SAMPLE_COUNTRIES = [
+    "United States", "United Kingdom", "Canada", "Australia", "Germany",
+    "France", "Italy", "Spain", "Japan", "South Korea", "Brazil", "Mexico",
+    "India", "Russia", "South Africa", "Netherlands", "Sweden", "Norway"
+]
+
+SAMPLE_PLATFORMS = ["TikTok", "Instagram", "YouTube", "Facebook", "Pinterest"]
+
+class TDScraper:
     """
-    Trending product scraper agent that uses a local LLM through LM Studio
-    to find and analyze trending products for dropshipping.
+    TDScraper Agent for finding trending products.
+    
+    In a production environment, this would use a local grok agent with
+    lmstudio for web searching capabilities. For now, it generates
+    simulated product data.
     """
     
-    def __init__(self, db: Session):
+    def __init__(
+        self, 
+        db: Session, 
+        max_products: int = 1000, 
+        progress_callback: Optional[Callable[[int, int, int], None]] = None
+    ):
+        """
+        Initialize the scraper agent.
+        
+        Args:
+            db: Database session
+            max_products: Maximum number of products to find
+            progress_callback: Callback function to report progress
+        """
         self.db = db
-        self.total_found = 0
+        self.max_products = max_products
+        self.progress_callback = progress_callback
+        self.existing_product_names = set()
         
-    async def search_trending_products(self, count: int = 1000, 
-                                      progress_callback: Optional[ProgressCallback] = None) -> Dict[str, Any]:
+    async def run(self) -> int:
         """
-        Main method to search for trending products across multiple platforms.
+        Run the scraper to find trending products.
         
-        Args:
-            count: Maximum number of products to find
-            progress_callback: Optional callback to report progress
-            
         Returns:
-            Dict containing results summary
+            int: Number of products found
         """
-        logger.info(f"Starting trending product search for {count} products")
+        logger.info(f"Starting TDScraper to find up to {self.max_products} products")
         
-        # Initialize search process
-        self.total_found = 0
+        # Load existing product names to avoid duplicates
+        self._load_existing_product_names()
         
-        # Verify LLM accessibility
-        if not await self._verify_llm_connection():
-            logger.error("Cannot connect to LM Studio API. Please check configuration.")
-            return {"error": "Cannot connect to LLM", "total_found": 0}
+        # Get current product count
+        current_count = len(self.existing_product_names)
         
-        # Start the search process
-        platforms = ["tiktok", "instagram", "pinterest", "youtube", "google_trends"]
-        categories = [
-            "home_decor", "kitchen_gadgets", "beauty_products", "fitness_equipment", 
-            "pet_accessories", "electronics", "clothing", "outdoor", "baby_products"
-        ]
+        # Determine how many products to find
+        products_to_find = max(0, self.max_products - current_count)
         
-        for i, category in enumerate(categories):
-            logger.info(f"Searching {category} ({i+1}/{len(categories)})")
+        if products_to_find <= 0:
+            logger.info(f"Already have {current_count} products, no need to find more")
             
-            # For each platform in the category
-            for j, platform in enumerate(platforms):
-                logger.info(f"Searching on {platform} for {category}")
+            # Still report progress
+            if self.progress_callback:
+                self.progress_callback(1, 1, current_count)
                 
-                # Simulate progress
-                if progress_callback:
-                    current_progress = (i * len(platforms) + j) 
-                    total_steps = len(categories) * len(platforms)
-                    progress_callback(current_progress, total_steps, self.total_found)
-                
-                # Search for products on this platform/category combination
-                platform_products = await self._search_platform(platform, category, 
-                                                               max_products=count//len(platforms)//len(categories))
-                
-                # Save products to database
-                await self._save_products(platform_products)
-                
-                # Check if we've reached our target count
-                if self.total_found >= count:
-                    logger.info(f"Reached target count of {count} products")
-                    break
+            return 0
             
-            # Check if we've reached our target count
-            if self.total_found >= count:
-                break
+        logger.info(f"Need to find {products_to_find} more products")
         
-        # Final progress update
-        if progress_callback:
-            progress_callback(1, 1, self.total_found)
+        # Simulate finding products
+        products_found = 0
+        total_steps = min(products_to_find, 100)  # Use 100 steps for simulation
+        
+        for step in range(total_steps):
+            # Calculate how many products to "find" in this step
+            batch_size = max(1, products_to_find // total_steps)
             
-        logger.info(f"Completed product search. Found {self.total_found} products")
-        return {"total_found": self.total_found}
-    
-    async def _verify_llm_connection(self) -> bool:
-        """Verify that the LM Studio API is accessible"""
-        # In a real implementation, would check connectivity
-        # For this stub, we'll assume it's available
-        logger.info("Verified LLM connection")
-        return True
-    
-    async def _search_platform(self, platform: str, category: str, max_products: int) -> List[Dict[str, Any]]:
+            if step == total_steps - 1:
+                # Make sure we find exactly the right number on the last step
+                batch_size = products_to_find - products_found
+                
+            # Simulate delay for searching
+            await asyncio.sleep(0.1)
+            
+            # Create products
+            for _ in range(batch_size):
+                await self._create_simulated_product()
+                products_found += 1
+                
+            # Report progress
+            if self.progress_callback:
+                self.progress_callback(step + 1, total_steps, current_count + products_found)
+                
+        logger.info(f"Found {products_found} new products")
+        return products_found
+        
+    def _load_existing_product_names(self):
+        """Load existing product names to avoid duplicates"""
+        products = self.db.query(Product.name).all()
+        self.existing_product_names = set(p[0] for p in products)
+        
+    async def _create_simulated_product(self) -> Product:
         """
-        Search a specific platform for trending products in a category
+        Create a simulated product with trends, regions, and videos.
         
-        Args:
-            platform: Platform to search (tiktok, instagram, etc.)
-            category: Product category to search for
-            max_products: Maximum products to return from this search
-            
         Returns:
-            List of product data dictionaries
+            Product: The created product
         """
-        logger.info(f"Searching {platform} for {category} products (max: {max_products})")
+        # Select a random category
+        category = random.choice(SAMPLE_CATEGORIES)
         
-        # In a real implementation, this would use the LM Studio API to search the web
-        # and extract product information using a chain of prompts
+        # Select a random subcategory
+        subcategory = random.choice(SAMPLE_SUBCATEGORIES[category])
         
-        # This is a stub implementation
-        products = []
-        for i in range(random.randint(1, max_products)):
-            # Create a randomized product
-            product = self._generate_mock_product(platform, category)
-            products.append(product)
+        # Generate a product name that doesn't exist yet
+        base_name = random.choice(SAMPLE_PRODUCT_NAMES[category])
+        product_name = base_name
+        
+        # Add a suffix if the name already exists
+        name_counter = 1
+        while product_name in self.existing_product_names:
+            product_name = f"{base_name} {name_counter}"
+            name_counter += 1
             
-        logger.info(f"Found {len(products)} {category} products on {platform}")
-        return products
-    
-    def _generate_mock_product(self, platform: str, category: str) -> Dict[str, Any]:
-        """Generate mock product data for testing purposes"""
-        # Product base information
-        subcategories = {
-            "home_decor": ["wall_art", "lighting", "decorative_pillows", "vases", "rugs"],
-            "kitchen_gadgets": ["utensils", "appliances", "storage", "tools", "accessories"],
-            "beauty_products": ["skincare", "makeup", "hair_care", "fragrances", "tools"],
-            "fitness_equipment": ["weights", "yoga", "cardio", "accessories", "wearables"],
-            "pet_accessories": ["toys", "beds", "collars", "bowls", "grooming"],
-            "electronics": ["headphones", "chargers", "speakers", "phone_accessories", "smart_home"],
-            "clothing": ["tops", "bottoms", "outerwear", "accessories", "footwear"],
-            "outdoor": ["camping", "garden", "sports", "patio", "travel"],
-            "baby_products": ["feeding", "travel", "clothing", "toys", "safety"]
-        }
+        # Add to set of existing names
+        self.existing_product_names.add(product_name)
         
-        # Create base product
-        subcategory = random.choice(subcategories.get(category, ["general"]))
-        
-        # Choose a random name based on category and subcategory
-        product_name = f"{subcategory.replace('_', ' ').title()} {category.replace('_', ' ').title()}"
-        
-        # Range for different metrics
-        trend_score = random.randint(50, 100)
-        engagement_rate = random.randint(20, 100)
-        sales_velocity = random.randint(10, 100)
-        search_volume = random.randint(30, 100)
-        geographic_spread = random.randint(20, 100)
-        
-        # Price range
-        price_low = round(random.uniform(5, 60), 2)
+        # Generate price range
+        price_low = round(random.uniform(5, 50), 2)
         price_high = round(price_low * random.uniform(1.2, 2.5), 2)
         
-        product = {
-            "name": product_name,
-            "category": category,
-            "subcategory": subcategory,
-            "price_range_low": price_low,
-            "price_range_high": price_high,
-            "trend_score": trend_score,
-            "engagement_rate": engagement_rate,
-            "sales_velocity": sales_velocity, 
-            "search_volume": search_volume,
-            "geographic_spread": geographic_spread,
-            "trends": self._generate_mock_trends(),
-            "regions": self._generate_mock_regions(),
-            "videos": self._generate_mock_videos(platform, product_name)
-        }
+        # Generate trend metrics (all between 1-100)
+        trend_score = random.randint(40, 100)  # Bias towards higher trend scores
+        engagement_rate = random.randint(1, 100)
+        sales_velocity = random.randint(1, 100)
+        search_volume = random.randint(1, 100)
+        geographic_spread = random.randint(1, 100)
+        
+        # Create image URL (placeholder)
+        image_url = f"https://picsum.photos/id/{random.randint(1, 1000)}/500/500"
+        
+        # Create product description
+        description = f"Trending {product_name} in the {category} category. This {subcategory} product has been gaining popularity with a trend score of {trend_score}."
+        
+        # Source platform
+        source_platform = random.choice(SAMPLE_PLATFORMS)
+        
+        # Wholesaler URLs (placeholders)
+        aliexpress_url = f"https://www.aliexpress.com/wholesale?SearchText={product_name.replace(' ', '+')}"
+        cjdropshipping_url = f"https://cjdropshipping.com/search?q={product_name.replace(' ', '+')}"
+        
+        # Create the product
+        product = Product(
+            name=product_name,
+            category=category,
+            subcategory=subcategory,
+            price_range_low=price_low,
+            price_range_high=price_high,
+            trend_score=trend_score,
+            engagement_rate=engagement_rate,
+            sales_velocity=sales_velocity,
+            search_volume=search_volume,
+            geographic_spread=geographic_spread,
+            image_url=image_url,
+            description=description,
+            source_platform=source_platform,
+            aliexpress_url=aliexpress_url,
+            cjdropshipping_url=cjdropshipping_url
+        )
+        
+        # Add to database
+        self.db.add(product)
+        self.db.flush()  # Get the ID without committing
+        
+        # Create trends (historical data for the past 7 days)
+        await self._create_trends_for_product(product)
+        
+        # Create regions
+        await self._create_regions_for_product(product)
+        
+        # Create videos
+        await self._create_videos_for_product(product)
+        
+        # Commit to database
+        self.db.commit()
         
         return product
-    
-    def _generate_mock_trends(self) -> List[Dict[str, Any]]:
-        """Generate mock trend data for a product"""
-        trends = []
         
-        # Generate trend data for the last 14 days
-        now = datetime.datetime.now()
-        for i in range(14):
-            date = now - datetime.timedelta(days=i)
+    async def _create_trends_for_product(self, product: Product):
+        """Create historical trend data for a product"""
+        # Generate data for the past 7 days
+        for days_ago in range(7, 0, -1):
+            # Calculate date
+            date = datetime.datetime.now() - datetime.timedelta(days=days_ago)
             
-            # Generate values with an upward trend for newer products
-            base = 100 - i*5  # Higher values for more recent dates
-            trends.append({
-                "date": date,
-                "engagement_value": int(base * random.uniform(0.8, 1.2)),
-                "sales_value": int(base * 0.7 * random.uniform(0.8, 1.2)),
-                "search_value": int(base * 0.9 * random.uniform(0.8, 1.2))
-            })
+            # Generate random values with a trend towards increasing recently
+            day_factor = (7 - days_ago) / 7  # 0.0 to 1.0
+            base_engagement = int(product.engagement_rate * 0.7)
+            base_sales = int(product.sales_velocity * 0.7)
+            base_search = int(product.search_volume * 0.7)
             
-        return trends
-    
-    def _generate_mock_regions(self) -> List[Dict[str, Any]]:
-        """Generate mock region data for a product"""
-        countries = ["United States", "United Kingdom", "Canada", "Australia", 
-                     "Germany", "France", "Japan", "Brazil", "India", "Mexico"]
-        
-        # Select a random number of countries (3-6)
+            # Add random fluctuations
+            engagement = max(1, int(base_engagement + (product.engagement_rate - base_engagement) * day_factor * random.uniform(0.8, 1.2)))
+            sales = max(1, int(base_sales + (product.sales_velocity - base_sales) * day_factor * random.uniform(0.8, 1.2)))
+            search = max(1, int(base_search + (product.search_volume - base_search) * day_factor * random.uniform(0.8, 1.2)))
+            
+            # Create the trend record
+            trend = Trend(
+                product_id=product.id,
+                date=date,
+                engagement_value=engagement,
+                sales_value=sales,
+                search_value=search
+            )
+            
+            self.db.add(trend)
+            
+    async def _create_regions_for_product(self, product: Product):
+        """Create geographical distribution data for a product"""
+        # Select 3-6 random countries
         num_countries = random.randint(3, 6)
-        selected_countries = random.sample(countries, num_countries)
+        selected_countries = random.sample(SAMPLE_COUNTRIES, num_countries)
         
-        # Generate percentages that sum to 100
-        percentages = [random.randint(5, 100) for _ in range(num_countries)]
-        total = sum(percentages)
-        normalized = [int((p / total) * 100) for p in percentages]
+        # Assign percentages (must sum to 100%)
+        percentages = []
+        remaining = 100
         
-        # Ensure they sum to 100
-        while sum(normalized) < 100:
-            idx = random.randint(0, len(normalized)-1)
-            normalized[idx] += 1
+        for i in range(num_countries - 1):
+            # Give more percentage to earlier countries (primary markets)
+            if i == 0:
+                # Primary market gets 30-60%
+                percentage = random.randint(30, 60)
+            else:
+                # Secondary markets get smaller percentages
+                percentage = random.randint(5, remaining - (num_countries - i - 1) * 5)
+                
+            percentages.append(percentage)
+            remaining -= percentage
             
-        while sum(normalized) > 100:
-            idx = random.randint(0, len(normalized)-1)
-            if normalized[idx] > 1:
-                normalized[idx] -= 1
+        # Last country gets whatever is left
+        percentages.append(remaining)
         
-        # Create the region objects
-        regions = []
-        for i, country in enumerate(selected_countries):
-            regions.append({
-                "country": country,
-                "percentage": normalized[i]
-            })
+        # Create region records
+        for country, percentage in zip(selected_countries, percentages):
+            region = Region(
+                product_id=product.id,
+                country=country,
+                percentage=percentage
+            )
             
-        return regions
-    
-    def _generate_mock_videos(self, platform: str, product_name: str) -> List[Dict[str, Any]]:
-        """Generate mock video data for a product"""
-        videos = []
-        
-        # How many videos to generate (0-3)
-        num_videos = random.randint(0, 3)
+            self.db.add(region)
+            
+    async def _create_videos_for_product(self, product: Product):
+        """Create marketing videos for a product"""
+        # Decide how many videos to create (1-3)
+        num_videos = random.randint(1, 3)
         
         for i in range(num_videos):
-            # Generate date within last 30 days
-            days_ago = random.randint(1, 30)
+            # Select a platform
+            platform = random.choice(SAMPLE_PLATFORMS)
+            
+            # Generate a title
+            adjectives = ["Amazing", "Unbelievable", "Must-Have", "Trending", "Viral", "Best"]
+            verbs = ["Unboxing", "Review", "Try-On", "Haul", "Test", "Demo"]
+            
+            title = f"{random.choice(adjectives)} {product.name} {random.choice(verbs)}"
+            
+            # Generate view count (higher for first video)
+            if i == 0:
+                views = random.randint(10000, 1000000)
+            else:
+                views = random.randint(1000, 100000)
+                
+            # Generate upload date (more recent for first video)
+            days_ago = random.randint(1, 14) if i == 0 else random.randint(14, 60)
             upload_date = datetime.datetime.now() - datetime.timedelta(days=days_ago)
             
-            # Video metrics
-            views = random.randint(1000, 1000000)
+            # Generate thumbnail URL (placeholder)
+            thumbnail_id = random.randint(1, 1000)
+            thumbnail_url = f"https://picsum.photos/id/{thumbnail_id}/320/180"
             
-            # Create video title
-            video_title = f"{product_name} Review - Amazing Product #{i+1}"
+            # Generate video URL (placeholder)
+            video_platforms = {
+                "TikTok": "https://www.tiktok.com/",
+                "Instagram": "https://www.instagram.com/p/",
+                "YouTube": "https://www.youtube.com/watch?v=",
+                "Facebook": "https://www.facebook.com/watch/?v=",
+                "Pinterest": "https://www.pinterest.com/pin/"
+            }
             
-            # Video URLs (would be real in actual implementation)
-            video_url = f"https://example.com/{platform}/video{random.randint(10000, 99999)}"
-            thumbnail_url = f"https://example.com/{platform}/thumb{random.randint(10000, 99999)}.jpg"
+            video_id = ''.join(random.choices('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', k=11))
+            video_url = f"{video_platforms[platform]}{video_id}"
             
-            videos.append({
-                "title": video_title,
-                "platform": platform,
-                "views": views,
-                "upload_date": upload_date,
-                "thumbnail_url": thumbnail_url,
-                "video_url": video_url
-            })
+            # Create the video record
+            video = Video(
+                product_id=product.id,
+                title=title,
+                platform=platform,
+                views=views,
+                upload_date=upload_date,
+                thumbnail_url=thumbnail_url,
+                video_url=video_url
+            )
             
-        return videos
-    
-    async def _save_products(self, products: List[Dict[str, Any]]) -> None:
-        """
-        Save product data to the database, performing upserts if a product already exists
-        
-        Args:
-            products: List of product data dictionaries
-        """
-        for product_data in products:
-            # Extract related data
-            trends_data = product_data.pop("trends", [])
-            regions_data = product_data.pop("regions", [])
-            videos_data = product_data.pop("videos", [])
-            
-            # Check if this product already exists (by name and category)
-            existing_product = self.db.query(Product).filter(
-                Product.name == product_data["name"],
-                Product.category == product_data["category"]
-            ).first()
-            
-            if existing_product:
-                logger.info(f"Product '{product_data['name']}' already exists. Checking for updates.")
-                
-                # Compare data to see if there are relevant updates
-                has_updates = False
-                
-                # Check core metrics for significant changes
-                metrics = [
-                    "trend_score", "engagement_rate", "sales_velocity", 
-                    "search_volume", "geographic_spread"
-                ]
-                
-                for metric in metrics:
-                    old_value = getattr(existing_product, metric)
-                    new_value = product_data.get(metric, old_value)
-                    
-                    # If there's a significant change (more than 5% difference)
-                    if abs(old_value - new_value) / max(1, old_value) > 0.05:
-                        logger.info(f"Significant change in {metric}: {old_value} -> {new_value}")
-                        setattr(existing_product, metric, new_value)
-                        has_updates = True
-                
-                # Check price changes
-                if (abs(existing_product.price_range_low - product_data.get("price_range_low", existing_product.price_range_low)) > 0.5 or
-                    abs(existing_product.price_range_high - product_data.get("price_range_high", existing_product.price_range_high)) > 0.5):
-                    existing_product.price_range_low = product_data.get("price_range_low", existing_product.price_range_low)
-                    existing_product.price_range_high = product_data.get("price_range_high", existing_product.price_range_high)
-                    has_updates = True
-                    logger.info(f"Price range updated for '{product_data['name']}'")
-                
-                # If we have updates, add new trend data point
-                if has_updates:
-                    logger.info(f"Updating existing product '{product_data['name']}'")
-                    
-                    # Add the latest trend data
-                    for trend_data in trends_data:
-                        # Check if we already have this exact date
-                        existing_trend = self.db.query(Trend).filter(
-                            Trend.product_id == existing_product.id,
-                            Trend.date == trend_data["date"]
-                        ).first()
-                        
-                        if not existing_trend:
-                            trend = Trend(product_id=existing_product.id, **trend_data)
-                            self.db.add(trend)
-                    
-                    # Add any new videos that don't exist
-                    for video_data in videos_data:
-                        existing_video = self.db.query(Video).filter(
-                            Video.product_id == existing_product.id,
-                            Video.video_url == video_data["video_url"]
-                        ).first()
-                        
-                        if not existing_video:
-                            video = Video(product_id=existing_product.id, **video_data)
-                            self.db.add(video)
-                    
-                    # Commit updates
-                    self.db.commit()
-                else:
-                    logger.info(f"No significant updates for '{product_data['name']}'")
-            else:
-                # Create new product
-                logger.info(f"Creating new product '{product_data['name']}'")
-                product = Product(**product_data)
-                self.db.add(product)
-                self.db.flush()  # Flush to get product ID
-                
-                # Create trends
-                for trend_data in trends_data:
-                    trend = Trend(product_id=product.id, **trend_data)
-                    self.db.add(trend)
-                
-                # Create regions
-                for region_data in regions_data:
-                    region = Region(product_id=product.id, **region_data)
-                    self.db.add(region)
-                
-                # Create videos
-                for video_data in videos_data:
-                    video = Video(product_id=product.id, **video_data)
-                    self.db.add(video)
-                
-                # Commit the transaction
-                self.db.commit()
-                
-                # Increment counter - only count new products
-                self.total_found += 1
-
-# Main function for the scraper agent
-async def start_scraper_agent(count: int, db: Session, 
-                              progress_callback: Optional[ProgressCallback] = None) -> Dict[str, Any]:
-    """
-    Start the scraper agent to find trending products
-    
-    Args:
-        count: Number of products to find
-        db: Database session
-        progress_callback: Optional callback function to report progress
-        
-    Returns:
-        Dict with results summary
-    """
-    scraper = TdScraper(db)
-    return await scraper.search_trending_products(count, progress_callback)
+            self.db.add(video)
