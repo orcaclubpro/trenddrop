@@ -207,6 +207,17 @@ export default function ProductList({
                       <i className="ri-external-link-line mr-1"></i> 
                       AliExpress
                     </a>
+                  ) : product.cjdropshippingUrl ? (
+                    <a 
+                      href={product.cjdropshippingUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary-600 dark:text-primary-400 hover:underline"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <i className="ri-external-link-line mr-1"></i> 
+                      CJ Dropshipping
+                    </a>
                   ) : (
                     <>
                       <i className="ri-global-line mr-1"></i> 

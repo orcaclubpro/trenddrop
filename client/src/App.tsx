@@ -145,8 +145,9 @@ function App() {
         setAppState(prev => ({
           ...prev,
           agentStatus: msg.status,
-          initialized: msg.status === 'started',
-          message: msg.status === 'started' 
+          // Accept 'started' or 'completed' as valid initialized states
+          initialized: msg.status === 'started' || msg.status === 'completed',
+          message: msg.status === 'started' || msg.status === 'completed'
             ? 'Application ready' 
             : 'Initializing product research agent...'
         }));

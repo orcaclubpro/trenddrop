@@ -6,12 +6,15 @@ import { ProductService } from "./services/product-service.js";
 import { TrendService } from "./services/trend-service.js";
 import { VideoService } from "./services/video-service.js";
 import { log } from "./vite.js";
+import { getAgentStatus } from "./services/agent-service.js";
+import { DatabaseService } from "./services/database-service.js";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize services
   const productService = new ProductService(storage);
   const trendService = new TrendService(storage);
   const videoService = new VideoService(storage);
+  const databaseService = DatabaseService.getInstance();
 
   log("Registering API routes", "routes");
 
@@ -192,6 +195,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Health check endpoint with detailed system status
+  app.get('/api/health', (req, res) => {
+    const agentStatus = getAgentStatus();
+    res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      version: '1.0.0',
+      database: {
+        connected: databaseService.isInitialized(),
+        status: databaseService.isInitialized() ? 'connected' : 'disconnected'
+      },
+      agent: {
+        status: agentStatus.status || 'unknown',
+        lastRun: agentStatus.lastRun,
+        nextRun: agentStatus.nextRun
+      },
+      websocket: {
+        connections: ((global as any).wsClients || new Set()).size
+      }
+    });
+  });
+  
+  // Simple ping endpoint for quick connectivity testing
+  app.get('/api/ping', (req, res) => {
+    res.json({
+      pong: true,
+      timestamp: new Date().toISOString()
+    });
+  });
+  
   // Add WebSocket route for the /ws endpoint referenced in the client
   app.get('/ws', (req, res) => {
     // This route exists to help clients discover the WebSocket endpoint
