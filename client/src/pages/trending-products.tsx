@@ -5,6 +5,7 @@ import { Product, ProductWithDetails } from "@shared/schema";
 import FilterBar from "@/components/filter-bar";
 import ProductList from "@/components/product-list";
 import ProductDetailDialog from "@/components/product-detail-dialog";
+import ScrollingProductSidebar from "@/components/scrolling-product-sidebar";
 
 export default function TrendingProducts() {
   const [filters, setFilters] = useState<{
@@ -15,6 +16,7 @@ export default function TrendingProducts() {
   
   const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
+  const [showSidebar, setShowSidebar] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   
   const handleFilterChange = (newFilters: { 
@@ -44,7 +46,21 @@ export default function TrendingProducts() {
   
   const handleSelectProduct = (product: Product) => {
     setSelectedProductId(product.id);
+    // Use the sidebar for a more persistent experience
+    setShowSidebar(true);
+    // Also show dialog for users who prefer it
     setIsDetailDialogOpen(true);
+  };
+
+  const handleCloseSidebar = () => {
+    setShowSidebar(false);
+    setSelectedProductId(null);
+  };
+
+  const handleCloseDialog = (open: boolean) => {
+    setIsDetailDialogOpen(open);
+    // Don't reset selectedProductId when closing dialog
+    // as the sidebar might still be showing details
   };
 
   // Query for product details
@@ -92,13 +108,22 @@ export default function TrendingProducts() {
         </div>
       </div>
 
+      {/* Product Detail Dialog (Modal) */}
       <ProductDetailDialog
         productId={selectedProductId}
         isOpen={isDetailDialogOpen}
-        onOpenChange={setIsDetailDialogOpen}
+        onOpenChange={handleCloseDialog}
         productDetails={productDetails}
         isLoading={isLoading}
       />
+
+      {/* Persistent Product Sidebar */}
+      {showSidebar && selectedProductId && (
+        <ScrollingProductSidebar 
+          productId={selectedProductId} 
+          onClose={handleCloseSidebar} 
+        />
+      )}
     </div>
   );
 }
