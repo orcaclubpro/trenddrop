@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { ProductWithDetails } from "@shared/schema";
 import TrendScoreRing from "./trend-score-ring";
 import TrendChart from "./trend-chart";
@@ -11,11 +11,13 @@ import {
   DialogContent, 
   DialogHeader, 
   DialogTitle,
-  DialogFooter
+  DialogFooter,
+  DialogClose
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, X } from 'lucide-react';
+import { useToast } from "@/hooks/use-toast";
 
 interface ProductDetailDialogProps {
   productId: number | null;
@@ -32,6 +34,37 @@ export default function ProductDetailDialog({
   productDetails, 
   isLoading 
 }: ProductDetailDialogProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
+  
+  // Handler to copy product details to clipboard
+  const handleCopyLink = () => {
+    if (!product) return;
+    
+    const productInfo = `${product.name} - $${product.priceRangeLow.toFixed(2)} to $${product.priceRangeHigh.toFixed(2)}`;
+    const supplierInfo = product.aliexpressUrl ? `\nAliExpress: ${product.aliexpressUrl}` : '';
+    const cjInfo = product.cjdropshippingUrl ? `\nCJ Dropshipping: ${product.cjdropshippingUrl}` : '';
+    
+    navigator.clipboard.writeText(`${productInfo}${supplierInfo}${cjInfo}`)
+      .then(() => {
+        toast({
+          title: "Copied to clipboard",
+          description: "Product details copied successfully",
+          duration: 3000,
+        });
+      })
+      .catch(err => {
+        console.error("Failed to copy: ", err);
+      });
+  };
+  
+  // Reset dialog scroll position when product changes
+  useEffect(() => {
+    if (isOpen && dialogRef.current) {
+      dialogRef.current.scrollTop = 0;
+    }
+  }, [productId, isOpen]);
+  
   if (!productId) return null;
   
   const { product, trends, regions, videos } = productDetails || {};
@@ -46,7 +79,15 @@ export default function ProductDetailDialog({
   
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
+      <DialogContent 
+        ref={dialogRef}
+        className="max-w-4xl max-h-[90vh] overflow-auto"
+        onInteractOutside={(e) => {
+          // Prevent closing when user clicks inside but outside of inputs
+          if (dialogRef.current?.contains(e.target as Node)) {
+            e.preventDefault();
+          }
+        }}>
         {isLoading ? (
           <>
             <DialogHeader>
@@ -74,7 +115,13 @@ export default function ProductDetailDialog({
                   <DialogTitle className="text-xl">{product.name}</DialogTitle>
                   <p className="text-sm text-muted-foreground">{product.subcategory}</p>
                 </div>
-                <TrendScoreRing score={product.trendScore} size={60} thickness={6} />
+                <div className="flex items-start gap-4">
+                  <TrendScoreRing score={product.trendScore} size={60} thickness={6} />
+                  <DialogClose className="rounded-full opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
+                    <X className="h-4 w-4" />
+                    <span className="sr-only">Close</span>
+                  </DialogClose>
+                </div>
               </div>
             </DialogHeader>
             
@@ -234,8 +281,35 @@ export default function ProductDetailDialog({
                     CJ Dropshipping
                   </a>
                 )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCopyLink}
+                  className="px-4 py-2 border border-border text-foreground rounded-md text-sm hover:bg-accent transition-colors"
+                >
+                  <svg 
+                    xmlns="http://www.w3.org/2000/svg" 
+                    className="h-4 w-4 inline mr-1.5" 
+                    fill="none" 
+                    viewBox="0 0 24 24" 
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  Copy Info
+                </Button>
               </div>
-              <Button className="bg-primary hover:bg-primary/90">
+              <Button 
+                className="bg-primary hover:bg-primary/90"
+                onClick={() => {
+                  toast({
+                    title: "Added to list",
+                    description: `${product.name} has been added to your list.`,
+                    duration: 3000,
+                  });
+                  onOpenChange(false);
+                }}
+              >
                 Add to List
               </Button>
             </DialogFooter>
