@@ -58,7 +58,7 @@ export class VideoRepository extends BaseRepository<schema.Video, number> {
       
       // Add sorting and pagination
       const videos = await query
-        .orderBy(desc(schema.videos.viewCount))
+        .orderBy(desc(schema.videos.views))
         .limit(pageSize)
         .offset(offset);
 
@@ -188,7 +188,7 @@ export class VideoRepository extends BaseRepository<schema.Video, number> {
         .select()
         .from(schema.videos)
         .where(eq(schema.videos.productId, productId))
-        .orderBy(desc(schema.videos.viewCount));
+        .orderBy(desc(schema.videos.views));
     } catch (error) {
       log(`Error finding videos for product: ${error}`, 'video-repo');
       throw error;
@@ -204,7 +204,7 @@ export class VideoRepository extends BaseRepository<schema.Video, number> {
       return await db
         .select()
         .from(schema.videos)
-        .orderBy(desc(schema.videos.viewCount))
+        .orderBy(desc(schema.videos.views))
         .limit(limit);
     } catch (error) {
       log(`Error getting top videos: ${error}`, 'video-repo');

@@ -102,10 +102,15 @@ export type Video = typeof videos.$inferSelect;
 // API Schemas for Frontend
 export const productFilterSchema = z.object({
   trendScore: z.number().optional(),
+  minTrendScore: z.number().optional(),
   category: z.string().optional(),
   region: z.string().optional(),
   page: z.number().default(1),
   limit: z.number().default(10),
+  pageSize: z.number().optional(),
+  sortBy: z.string().optional(),
+  sortDirection: z.enum(['asc', 'desc']).optional(),
+  search: z.string().optional(),
 });
 
 export type ProductFilter = z.infer<typeof productFilterSchema>;

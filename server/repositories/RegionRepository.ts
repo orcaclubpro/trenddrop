@@ -47,7 +47,7 @@ export class RegionRepository extends BaseRepository<schema.Region, number> {
       
       // Add sorting and pagination
       const regions = await query
-        .orderBy(desc(schema.regions.interestLevel))
+        .orderBy(desc(schema.regions.percentage)) // Use percentage instead of interestLevel
         .limit(pageSize)
         .offset(offset);
 
@@ -177,7 +177,7 @@ export class RegionRepository extends BaseRepository<schema.Region, number> {
         .select()
         .from(schema.regions)
         .where(eq(schema.regions.productId, productId))
-        .orderBy(desc(schema.regions.interestLevel));
+        .orderBy(desc(schema.regions.percentage));
     } catch (error) {
       log(`Error finding regions for product: ${error}`, 'region-repo');
       throw error;
@@ -195,9 +195,9 @@ export class RegionRepository extends BaseRepository<schema.Region, number> {
         return 0;
       }
       
-      // Calculate variance of interest levels as a measure of spread
-      const avgInterest = regions.reduce((sum, region) => sum + region.interestLevel, 0) / regions.length;
-      const variance = regions.reduce((sum, region) => sum + Math.pow(region.interestLevel - avgInterest, 2), 0) / regions.length;
+      // Calculate variance of percentage as a measure of spread (using the correct field)
+      const avgPercentage = regions.reduce((sum, region) => sum + region.percentage, 0) / regions.length;
+      const variance = regions.reduce((sum, region) => sum + Math.pow(region.percentage - avgPercentage, 2), 0) / regions.length;
       
       // Normalize to 0-100 scale (higher variance means more spread)
       const normalizedSpread = Math.min(100, variance / 10);
@@ -216,14 +216,14 @@ export class RegionRepository extends BaseRepository<schema.Region, number> {
     try {
       const db = databaseService.getDb();
       
-      // Group by region name and count occurrences
+      // Group by country (which is the correct field in the schema) and count occurrences
       const result = await db
         .select({
-          regionName: schema.regions.regionName,
+          regionName: schema.regions.country,
           count: sql`count(${schema.regions.id})`
         })
         .from(schema.regions)
-        .groupBy(schema.regions.regionName)
+        .groupBy(schema.regions.country)
         .orderBy(desc(sql`count(${schema.regions.id})`))
         .limit(limit);
       
