@@ -7,20 +7,48 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
-export async function apiRequest(
-  method: string,
-  url: string,
-  data?: unknown | undefined,
-): Promise<Response> {
-  const res = await fetch(url, {
-    method,
-    headers: data ? { "Content-Type": "application/json" } : {},
-    body: data ? JSON.stringify(data) : undefined,
-    credentials: "include",
-  });
+interface ApiRequestOptions {
+  method?: string;
+  body?: string | object;
+  headers?: Record<string, string>;
+}
 
-  await throwIfResNotOk(res);
-  return res;
+/**
+ * Utility for making API requests with proper error handling
+ * @param url API endpoint URL
+ * @param options Request options
+ */
+export async function apiRequest<T = any>(
+  url: string,
+  options: ApiRequestOptions = {}
+): Promise<T> {
+  const { method = 'GET', body, headers = {} } = options;
+
+  const requestOptions: RequestInit = {
+    method,
+    headers: {
+      ...(typeof body === 'string' || body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+      ...headers,
+    },
+    credentials: "include",
+  };
+
+  if (body) {
+    requestOptions.body = typeof body === 'string' ? 
+      body : 
+      JSON.stringify(body);
+  }
+
+  const response = await fetch(url, requestOptions);
+  await throwIfResNotOk(response);
+  
+  // Check if response has content
+  const contentType = response.headers.get('content-type');
+  if (contentType && contentType.includes('application/json')) {
+    return await response.json();
+  }
+  
+  return (await response.text()) as unknown as T;
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
@@ -47,7 +75,7 @@ export const queryClient = new QueryClient({
       queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
       refetchOnWindowFocus: false,
-      staleTime: Infinity,
+      staleTime: 30000, // 30 seconds
       retry: false,
     },
     mutations: {

@@ -270,7 +270,7 @@ class TdScraper:
     
     async def _save_products(self, products: List[Dict[str, Any]]) -> None:
         """
-        Save product data to the database
+        Save product data to the database, performing upserts if a product already exists
         
         Args:
             products: List of product data dictionaries
@@ -281,31 +281,100 @@ class TdScraper:
             regions_data = product_data.pop("regions", [])
             videos_data = product_data.pop("videos", [])
             
-            # Create product
-            product = Product(**product_data)
-            self.db.add(product)
-            self.db.flush()  # Flush to get product ID
+            # Check if this product already exists (by name and category)
+            existing_product = self.db.query(Product).filter(
+                Product.name == product_data["name"],
+                Product.category == product_data["category"]
+            ).first()
             
-            # Create trends
-            for trend_data in trends_data:
-                trend = Trend(product_id=product.id, **trend_data)
-                self.db.add(trend)
-            
-            # Create regions
-            for region_data in regions_data:
-                region = Region(product_id=product.id, **region_data)
-                self.db.add(region)
-            
-            # Create videos
-            for video_data in videos_data:
-                video = Video(product_id=product.id, **video_data)
-                self.db.add(video)
-            
-            # Commit the transaction
-            self.db.commit()
-            
-            # Increment counter
-            self.total_found += 1
+            if existing_product:
+                logger.info(f"Product '{product_data['name']}' already exists. Checking for updates.")
+                
+                # Compare data to see if there are relevant updates
+                has_updates = False
+                
+                # Check core metrics for significant changes
+                metrics = [
+                    "trend_score", "engagement_rate", "sales_velocity", 
+                    "search_volume", "geographic_spread"
+                ]
+                
+                for metric in metrics:
+                    old_value = getattr(existing_product, metric)
+                    new_value = product_data.get(metric, old_value)
+                    
+                    # If there's a significant change (more than 5% difference)
+                    if abs(old_value - new_value) / max(1, old_value) > 0.05:
+                        logger.info(f"Significant change in {metric}: {old_value} -> {new_value}")
+                        setattr(existing_product, metric, new_value)
+                        has_updates = True
+                
+                # Check price changes
+                if (abs(existing_product.price_range_low - product_data.get("price_range_low", existing_product.price_range_low)) > 0.5 or
+                    abs(existing_product.price_range_high - product_data.get("price_range_high", existing_product.price_range_high)) > 0.5):
+                    existing_product.price_range_low = product_data.get("price_range_low", existing_product.price_range_low)
+                    existing_product.price_range_high = product_data.get("price_range_high", existing_product.price_range_high)
+                    has_updates = True
+                    logger.info(f"Price range updated for '{product_data['name']}'")
+                
+                # If we have updates, add new trend data point
+                if has_updates:
+                    logger.info(f"Updating existing product '{product_data['name']}'")
+                    
+                    # Add the latest trend data
+                    for trend_data in trends_data:
+                        # Check if we already have this exact date
+                        existing_trend = self.db.query(Trend).filter(
+                            Trend.product_id == existing_product.id,
+                            Trend.date == trend_data["date"]
+                        ).first()
+                        
+                        if not existing_trend:
+                            trend = Trend(product_id=existing_product.id, **trend_data)
+                            self.db.add(trend)
+                    
+                    # Add any new videos that don't exist
+                    for video_data in videos_data:
+                        existing_video = self.db.query(Video).filter(
+                            Video.product_id == existing_product.id,
+                            Video.video_url == video_data["video_url"]
+                        ).first()
+                        
+                        if not existing_video:
+                            video = Video(product_id=existing_product.id, **video_data)
+                            self.db.add(video)
+                    
+                    # Commit updates
+                    self.db.commit()
+                else:
+                    logger.info(f"No significant updates for '{product_data['name']}'")
+            else:
+                # Create new product
+                logger.info(f"Creating new product '{product_data['name']}'")
+                product = Product(**product_data)
+                self.db.add(product)
+                self.db.flush()  # Flush to get product ID
+                
+                # Create trends
+                for trend_data in trends_data:
+                    trend = Trend(product_id=product.id, **trend_data)
+                    self.db.add(trend)
+                
+                # Create regions
+                for region_data in regions_data:
+                    region = Region(product_id=product.id, **region_data)
+                    self.db.add(region)
+                
+                # Create videos
+                for video_data in videos_data:
+                    video = Video(product_id=product.id, **video_data)
+                    self.db.add(video)
+                
+                # Commit the transaction
+                self.db.commit()
+                
+                # Increment counter - only count new products
+                self.total_found += 1
 
 # Main function for the scraper agent
 async def start_scraper_agent(count: int, db: Session, 

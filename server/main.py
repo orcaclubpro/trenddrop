@@ -39,8 +39,20 @@ async def startup_event():
     """Initialize resources at startup"""
     logger.info("Starting TrendDrop API server")
     
-    # In a real implementation, this would initialize
-    # database connections, check for required resources, etc.
+    # Import at function level to avoid circular imports
+    from app.db.database import get_db, SessionLocal
+    from app.api.scraper_routes import check_and_start_scraper_if_needed
+    
+    # Create a database session for initialization
+    db = SessionLocal()
+    try:
+        # Check and auto-start the scraper if needed
+        await check_and_start_scraper_if_needed(db)
+    except Exception as e:
+        logger.error(f"Error during startup: {e}")
+    finally:
+        db.close()
+    
     logger.info("TrendDrop API server initialized successfully")
 
 # Shutdown event to run when the server stops
