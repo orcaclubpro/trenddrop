@@ -14,13 +14,16 @@ import Sidebar from "@/components/sidebar";
 import LoadingState from "@/components/loading-state";
 import { ReactNode, useState, useEffect } from "react";
 import { useWebSocket } from "./hooks/use-websocket";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 // Layout component to wrap all pages with sidebar
 function Layout({ children }: { children: ReactNode }) {
+  const isMobile = useIsMobile();
+  
   return (
-    <div className="min-h-screen flex flex-col md:flex-row">
+    <div className="min-h-screen bg-muted/30">
       <Sidebar />
-      <main className="flex-1 md:ml-64 min-h-screen flex flex-col">
+      <main className={`min-h-screen flex flex-col ${isMobile ? "pt-16" : "ml-64"}`}>
         {children}
       </main>
     </div>
