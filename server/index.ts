@@ -5,7 +5,7 @@ import WebSocket from 'ws';
 import { initializeDatabase } from './initialize.js';
 import { registerRoutes } from './routes.js';
 import databaseService from './services/database-service.js';
-import { startAgentService } from './services/agent-service.js';
+import { startAgentService, getAgentStatus } from './services/agent-service.js';
 import { setupVite, serveStatic, log } from './vite.js';
 
 // Constants

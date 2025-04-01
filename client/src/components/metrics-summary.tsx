@@ -94,17 +94,20 @@ export default function MetricsSummary() {
 
   if (isLoading) {
     return (
-      <div className="rounded-lg border bg-card p-3 mb-6">
+      <div className="p-4 mb-6">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold">Key Metrics</h2>
+          <h2 className="text-lg font-medium text-gray-700">Key Metrics</h2>
           <Skeleton className="h-5 w-24" />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="p-4 rounded-lg border">
-              <Skeleton className="h-4 w-1/2 mb-2" />
-              <Skeleton className="h-8 w-1/3 mb-2" />
-              <Skeleton className="h-3 w-2/3" />
+            <div key={i} className="p-6 rounded-md bg-white shadow-sm border border-gray-100">
+              <div className="flex items-center mb-3">
+                <Skeleton className="w-9 h-9 rounded-md mr-3" />
+                <Skeleton className="h-4 w-24" />
+              </div>
+              <Skeleton className="h-10 w-16 mb-3" />
+              <Skeleton className="h-3 w-32" />
             </div>
           ))}
         </div>
@@ -113,17 +116,17 @@ export default function MetricsSummary() {
   }
 
   return (
-    <div className="rounded-lg border bg-card p-3 mb-6">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold tracking-tight">Key Metrics</h2>
+    <div className="p-4 mb-6">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-lg font-medium text-gray-700">Key Metrics</h2>
         <Badge 
           variant={wsStatus === 'open' ? "outline" : "destructive"} 
-          className="flex items-center gap-1.5 px-2 py-0.5"
+          className="flex items-center gap-1.5 px-2.5 py-0.5 text-xs"
         >
           {wsStatus === 'open' ? (
             <>
               <Wifi className="h-3 w-3" />
-              {isFetching ? "Updating..." : "Real-time data"}
+              {isFetching ? "Updating..." : "Live data"}
             </>
           ) : (
             <>
@@ -134,30 +137,29 @@ export default function MetricsSummary() {
         </Badge>
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         {metrics.map((metric, index) => (
           <div 
             key={index}
-            className="p-5 rounded-lg border bg-background/50 hover:bg-background/80 transition-colors"
+            className="p-6 rounded-md bg-white shadow-sm border border-gray-100"
           >
-            <div className="flex justify-between items-start">
-              <div>
-                <div className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1">{metric.title}</div>
-                <div className="text-2xl font-semibold">
-                  {metric.title === "Avg. Trend Score" && typeof metric.value === 'number' 
-                    ? metric.value.toFixed(1) 
-                    : metric.value}
-                </div>
+            <div className="flex items-center mb-3">
+              <div className={cn("w-9 h-9 rounded-md flex items-center justify-center mr-3", metric.iconBg)}>
+                <div className={metric.iconColor}>{metric.icon}</div>
               </div>
-              <div className={cn("p-2 rounded-full", metric.iconBg, metric.iconColor)}>
-                {metric.icon}
-              </div>
+              <span className="text-sm font-medium text-gray-500">{metric.title}</span>
             </div>
             
-            <div className={cn("text-xs flex items-center mt-3", metric.change.color)}>
+            <div className="text-3xl font-semibold mb-3 text-gray-800">
+              {metric.title === "Avg. Trend Score" && typeof metric.value === 'number' 
+                ? metric.value.toFixed(1) 
+                : metric.value}
+            </div>
+            
+            <div className={cn("text-xs flex items-center", metric.change.color)}>
               {metric.change.icon}
               <span className="font-medium">{metric.change.value}</span>&nbsp;
-              <span className="text-muted-foreground">{metric.change.label}</span>
+              <span className="text-gray-500">{metric.change.label}</span>
             </div>
           </div>
         ))}
