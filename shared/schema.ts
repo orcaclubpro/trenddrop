@@ -17,7 +17,7 @@ export const insertUserSchema = createInsertSchema(users).pick({
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
-// Product table
+// Product table with supplier URL
 export const products = pgTable("products", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -30,11 +30,7 @@ export const products = pgTable("products", {
   salesVelocity: integer("sales_velocity").notNull(),
   searchVolume: integer("search_volume").notNull(),
   geographicSpread: integer("geographic_spread").notNull(),
-  imageUrl: text("image_url"),
-  description: text("description"),
-  sourcePlatform: text("source_platform"),
-  aliexpressUrl: text("aliexpress_url"),
-  cjdropshippingUrl: text("cjdropshipping_url"),
+  supplierUrl: text("supplier_url"), // Added supplier URL field
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

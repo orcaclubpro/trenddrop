@@ -1,24 +1,49 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Product, ProductWithDetails } from "@shared/schema";
 import TrendScoreRing from "./trend-score-ring";
 import TrendChart from "./trend-chart";
 import GeographicMap from "./geographic-map";
 import VideoCard from "./video-card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useEffect } from "react";
+import { useWebSocket } from "@/hooks/use-websocket";
 
 interface ProductDetailProps {
   productId: number | null;
 }
 
 export default function ProductDetail({ productId }: ProductDetailProps) {
+  const queryClient = useQueryClient();
+  
+  // Determine WebSocket URL based on current URL
+  const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = `${wsProtocol}//${window.location.host}`;
+  
+  // Use WebSocket hook for real-time updates
+  const { messages } = useWebSocket(wsUrl);
+  
+  // Query for product details
   const { 
     data: productDetails,
-    isLoading
+    isLoading,
+    isFetching
   } = useQuery<ProductWithDetails>({
     queryKey: [`/api/products/${productId}`],
     enabled: productId !== null,
   });
   
+  // Listen for WebSocket messages for real-time updates
+  useEffect(() => {
+    const productUpdates = messages.filter(msg => 
+      msg.type === 'product_update' && msg.productId === productId
+    );
+    
+    if (productUpdates.length > 0 && productId) {
+      // Invalidate the query to trigger a refetch
+      queryClient.invalidateQueries({ queryKey: [`/api/products/${productId}`] });
+    }
+  }, [messages, productId, queryClient]);
+
   if (!productId) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8 flex flex-col items-center justify-center h-full">
@@ -75,6 +100,11 @@ export default function ProductDetail({ productId }: ProductDetailProps) {
       <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
         <h3 className="font-medium">Product Details</h3>
         <div>
+          {isFetching && !isLoading && (
+            <span className="text-xs mr-2 text-primary-500">
+              <i className="ri-refresh-line animate-spin"></i> Updating...
+            </span>
+          )}
           <button className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
             <i className="ri-more-2-fill"></i>
           </button>
@@ -92,9 +122,26 @@ export default function ProductDetail({ productId }: ProductDetailProps) {
           <TrendScoreRing score={product.trendScore} />
         </div>
         
-        <div className="mt-4 flex items-center justify-between">
-          <div className="text-sm">Price Range:</div>
-          <div className="font-medium">${product.priceRangeLow.toFixed(2)} - ${product.priceRangeHigh.toFixed(2)}</div>
+        <div className="mt-4 flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <div className="text-sm">Price Range:</div>
+            <div className="font-medium">${product.priceRangeLow.toFixed(2)} - ${product.priceRangeHigh.toFixed(2)}</div>
+          </div>
+          
+          {/* Supplier Link */}
+          {product.supplierUrl && (
+            <div className="flex items-center justify-between">
+              <div className="text-sm">Supplier:</div>
+              <a 
+                href={product.supplierUrl} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1"
+              >
+                <i className="ri-external-link-line"></i> Visit Supplier
+              </a>
+            </div>
+          )}
         </div>
         
         {/* Trend Score Breakdown */}
@@ -184,9 +231,20 @@ export default function ProductDetail({ productId }: ProductDetailProps) {
       </div>
       
       <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center">
-        <button className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md text-sm hover:bg-gray-50 dark:hover:bg-gray-700">
-          <i className="ri-external-link-line mr-1"></i> Find Suppliers
-        </button>
+        {product.supplierUrl ? (
+          <a 
+            href={product.supplierUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md text-sm hover:bg-gray-50 dark:hover:bg-gray-700"
+          >
+            <i className="ri-external-link-line mr-1"></i> Visit Supplier
+          </a>
+        ) : (
+          <button className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md text-sm hover:bg-gray-50 dark:hover:bg-gray-700">
+            <i className="ri-search-line mr-1"></i> Find Suppliers
+          </button>
+        )}
         <button className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-md text-sm">
           <i className="ri-add-line mr-1"></i> Add to List
         </button>

@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Product } from "@shared/schema";
 import TrendScoreRing from "./trend-score-ring";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useWebSocket } from "@/hooks/use-websocket";
 
 interface ProductListProps {
   filters: {
@@ -20,6 +21,14 @@ export default function ProductList({
   isRefreshing
 }: ProductListProps) {
   const [page, setPage] = useState(1);
+  const queryClient = useQueryClient();
+  
+  // Determine WebSocket URL based on current URL
+  const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = `${wsProtocol}//${window.location.host}`;
+  
+  // Use WebSocket hook for real-time updates
+  const { messages } = useWebSocket(wsUrl);
   
   // Reset pagination when filters change
   useEffect(() => {
@@ -29,6 +38,7 @@ export default function ProductList({
   const { 
     data, 
     isLoading,
+    isFetching,
     refetch
   } = useQuery<{
     products: Product[];
@@ -48,6 +58,16 @@ export default function ProductList({
       }
     ],
   });
+  
+  // Listen for WebSocket messages for real-time updates
+  useEffect(() => {
+    const productUpdates = messages.filter(msg => msg.type === 'product_update');
+    
+    if (productUpdates.length > 0) {
+      // Invalidate the query to trigger a refetch
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+    }
+  }, [messages, queryClient]);
   
   // Refresh data when isRefreshing prop changes
   useEffect(() => {
@@ -81,8 +101,11 @@ export default function ProductList({
       case 'Fitness':
         bgColor = 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200';
         break;
-      case 'Decor':
+      case 'Beauty':
         bgColor = 'bg-pink-100 dark:bg-pink-900 text-pink-800 dark:text-pink-200';
+        break;
+      case 'Fashion':
+        bgColor = 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200';
         break;
       default:
         bgColor = 'bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200';
@@ -98,7 +121,14 @@ export default function ProductList({
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
       <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-        <h3 className="font-medium">Trending Products</h3>
+        <h3 className="font-medium">
+          Trending Products
+          {isFetching && !isLoading && (
+            <span className="ml-2 text-xs text-primary-500">
+              <i className="ri-refresh-line animate-spin"></i> Updating...
+            </span>
+          )}
+        </h3>
         <div className="flex items-center gap-2">
           <button className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
             <i className="ri-search-line"></i>
@@ -158,8 +188,23 @@ export default function ProductList({
                   ${product.priceRangeLow.toFixed(2)} - ${product.priceRangeHigh.toFixed(2)}
                 </div>
                 <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  <i className="ri-global-line mr-1"></i> 
-                  {product.id % 2 === 0 ? "USA, Germany" : "Canada, UK"}
+                  {product.supplierUrl ? (
+                    <a 
+                      href={product.supplierUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary-600 dark:text-primary-400 hover:underline"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <i className="ri-external-link-line mr-1"></i> 
+                      Supplier
+                    </a>
+                  ) : (
+                    <>
+                      <i className="ri-global-line mr-1"></i> 
+                      {product.id % 2 === 0 ? "USA, Germany" : "Canada, UK"}
+                    </>
+                  )}
                 </div>
               </div>
             </div>
