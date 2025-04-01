@@ -77,11 +77,12 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
           connect();
         }, reconnectInterval);
       } else if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
-        toast({
-          title: 'Connection Lost',
-          description: 'Could not reconnect to the server. Please refresh the page.',
-          variant: 'destructive'
-        });
+        // Don't show destructive toast for WebSocket errors
+        console.warn('Maximum reconnect attempts reached in useWebSocket');
+        // Reset counter after a delay to allow future reconnection attempts
+        setTimeout(() => {
+          reconnectAttemptsRef.current = 0;
+        }, 30000);
       }
     };
 

@@ -82,34 +82,22 @@ export function WebSocketStatus({
 
   if (variant === 'compact') {
     return (
-      <div className={`flex items-center gap-2 ${className}`}>
+      <div className={`flex items-center gap-2 ${className} ${!isConnected && !isConnecting ? 'opacity-80' : 'opacity-60 hover:opacity-100 transition-opacity'}`}>
         {isConnected ? (
           <CheckCircle2 className="h-4 w-4 text-green-500" />
         ) : isConnecting ? (
           <RefreshCw className="h-4 w-4 text-yellow-500 animate-spin" />
         ) : (
-          <XCircle className="h-4 w-4 text-red-500" />
+          <RefreshCw className="h-4 w-4 text-muted-foreground cursor-pointer" onClick={reconnect} />
         )}
         
         <span className="text-sm font-medium">
           {isConnected 
-            ? 'WebSocket Connected' 
+            ? 'Connected' 
             : isConnecting 
               ? 'Connecting...' 
-              : 'Disconnected'}
+              : 'Reconnect'}
         </span>
-        
-        {showReconnectButton && !isConnected && !isConnecting && (
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="p-0 h-auto" 
-            onClick={reconnect}
-          >
-            <RefreshCw className="h-3 w-3 mr-1" />
-            Reconnect
-          </Button>
-        )}
       </div>
     );
   }

@@ -21,7 +21,7 @@ export default function Layout({ children }: LayoutProps) {
         <div className="fixed bottom-4 right-4 z-50">
           <WebSocketStatus 
             variant="compact" 
-            className="bg-background/90 backdrop-blur-sm shadow-lg rounded-full px-4 py-2 border"
+            className="bg-background/60 backdrop-blur-sm shadow-sm rounded-full px-3 py-1 border border-border/40 hover:bg-background/80 transition-all"
           />
         </div>
       </div>

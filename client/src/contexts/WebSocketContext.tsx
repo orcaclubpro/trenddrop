@@ -154,11 +154,12 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             connect();
           }, backoffTime);
         } else if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
-          toast({
-            title: 'Connection Lost',
-            description: 'Could not reconnect to the server. Please refresh the page.',
-            variant: 'destructive'
-          });
+          // Stop showing error toast for WebSocket connectivity issues
+          console.warn('Maximum reconnection attempts reached');
+          // Reset the counter to allow future reconnection attempts
+          setTimeout(() => {
+            reconnectAttemptsRef.current = 0;
+          }, 30000); // Wait 30 seconds before allowing reconnection attempts again
         }
       };
 
