@@ -1,26 +1,21 @@
-# app/db/database.py
+import os
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-import os
+from sqlalchemy.orm import sessionmaker, Session
 
-# Directory for the SQLite database
-DB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data")
-os.makedirs(DB_DIR, exist_ok=True)
+# Get database URL from environment variables or use SQLite as fallback
+DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./trenddrop.db")
 
-# Database URL for SQLite
-SQLALCHEMY_DATABASE_URL = f"sqlite:///{os.path.join(DB_DIR, 'trenddrop.db')}"
-
-# Create engine with SQLite configuration
+# Create the SQLAlchemy engine
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, 
-    connect_args={"check_same_thread": False}  # SQLite specific argument
+    DATABASE_URL,
+    connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 )
 
-# Create sessionmaker
+# Create a sessionmaker
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# Base class for all models
+# Create the base class for declarative models
 Base = declarative_base()
 
 def get_db():

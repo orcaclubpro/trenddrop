@@ -1,7 +1,4 @@
-# app/models/base.py
-from sqlalchemy import Column, Integer, DateTime
-from sqlalchemy.sql import func
-from app.db.database import Base
+from sqlalchemy import Column, Integer, DateTime, func
 
 class TimeStampedBase:
     """Base class that includes created_at and updated_at fields"""

@@ -1,6 +1,6 @@
-# app/models/product.py (updated)
-from sqlalchemy import Column, String, Float, Integer
+from sqlalchemy import Column, String, Float, Integer, ForeignKey
 from sqlalchemy.orm import relationship
+
 from app.db.database import Base
 from app.models.base import TimeStampedBase
 

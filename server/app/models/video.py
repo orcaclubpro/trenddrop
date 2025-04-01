@@ -1,6 +1,6 @@
-# app/models/video.py
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
+
 from app.db.database import Base
 from app.models.base import TimeStampedBase
 
@@ -15,5 +15,5 @@ class Video(Base, TimeStampedBase):
     thumbnail_url = Column(String, nullable=False)
     video_url = Column(String, nullable=False)
     
-    # Relationship to product
+    # Relationships
     product = relationship("Product", back_populates="videos")

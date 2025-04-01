@@ -1,6 +1,6 @@
-# app/models/trend.py
 from sqlalchemy import Column, Integer, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
+
 from app.db.database import Base
 from app.models.base import TimeStampedBase
 
@@ -13,5 +13,5 @@ class Trend(Base, TimeStampedBase):
     sales_value = Column(Integer, nullable=False)
     search_value = Column(Integer, nullable=False)
     
-    # Relationship to product
+    # Relationships
     product = relationship("Product", back_populates="trends")

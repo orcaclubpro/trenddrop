@@ -1,6 +1,6 @@
-# app/models/region.py
 from sqlalchemy import Column, Integer, String, ForeignKey
 from sqlalchemy.orm import relationship
+
 from app.db.database import Base
 from app.models.base import TimeStampedBase
 
@@ -11,5 +11,5 @@ class Region(Base, TimeStampedBase):
     country = Column(String, nullable=False)
     percentage = Column(Integer, nullable=False)
     
-    # Relationship to product
+    # Relationships
     product = relationship("Product", back_populates="regions")

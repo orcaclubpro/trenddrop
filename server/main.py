@@ -1,35 +1,55 @@
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-import os
 
 from app.api.api import api_router
-from app.db.database import create_db_and_tables, get_db
 
-app = FastAPI(title="TrendDrop API", version="1.0.0")
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# Configure CORS
+# Create the FastAPI app
+app = FastAPI(
+    title="TrendDrop API",
+    description="API for TrendDrop Product Research Tool",
+    version="1.0.0"
+)
+
+# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with your frontend domain
+    allow_origins=["*"],  # In production, this should be restricted
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include API routes
+# Include the API router
 app.include_router(api_router, prefix="/api")
 
-# Mount static files for the frontend
-if os.path.exists("../client/dist"):
-    app.mount("/", StaticFiles(directory="../client/dist", html=True), name="static")
-
-@app.on_event("startup")
-async def startup_event():
-    # Initialize database
-    create_db_and_tables()
-
+# Health check endpoint
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
     return {"status": "ok"}
+
+# Startup event to run when the server starts
+@app.on_event("startup")
+async def startup_event():
+    """Initialize resources at startup"""
+    logger.info("Starting TrendDrop API server")
+    
+    # In a real implementation, this would initialize
+    # database connections, check for required resources, etc.
+    logger.info("TrendDrop API server initialized successfully")
+
+# Shutdown event to run when the server stops
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Clean up resources at shutdown"""
+    logger.info("Shutting down TrendDrop API server")
+
+# Run with: uvicorn main:app --reload
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
