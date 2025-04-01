@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { 
@@ -17,12 +17,15 @@ import { formatCompactNumber, formatCurrency } from '@/lib/utils';
 import { LoadingScreen } from '@/components/ui/loading-screen';
 import { useToast } from '@/hooks/use-toast';
 import { useWebSocket } from '@/hooks/use-websocket';
-import { WS_MESSAGE_TYPES } from '@/lib/constants';
+import { WS_MESSAGE_TYPES, API } from '@/lib/constants';
+import { DashboardService, ProductService } from '@/services';
 
 export default function Dashboard() {
   const { toast } = useToast();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  const queryClient = useQueryClient();
+  
   // WebSocket integration for real-time updates
   useWebSocket({
     onOpen: () => {
@@ -31,6 +34,7 @@ export default function Dashboard() {
     onMessage: (message) => {
       if (message.type === WS_MESSAGE_TYPES.PRODUCT_UPDATE) {
         // Invalidate queries to refresh data
+        queryClient.invalidateQueries({ queryKey: [API.DASHBOARD] });
         console.log('Product update received, refreshing data');
       }
     }
@@ -39,34 +43,67 @@ export default function Dashboard() {
   // Fetch dashboard summary data
   const { 
     data: dashboardData, 
-    isLoading, 
-    error, 
-    refetch 
+    isLoading: isDashboardLoading, 
+    error: dashboardError, 
+    refetch: refetchDashboard 
   } = useQuery({
-    queryKey: ['/api/dashboard']
+    queryKey: [API.DASHBOARD],
+    queryFn: () => DashboardService.getDashboardSummary()
+  });
+  
+  // Fetch trending products
+  const {
+    data: trendingProducts,
+    isLoading: isTrendingLoading,
+    error: trendingError
+  } = useQuery({
+    queryKey: [API.TRENDING_PRODUCTS],
+    queryFn: () => ProductService.getTrendingProducts(5)
   });
 
   useEffect(() => {
-    if (error) {
+    if (dashboardError) {
       toast({
         title: 'Error',
         description: 'Failed to load dashboard data',
         variant: 'destructive',
       });
     }
-  }, [error, toast]);
+    
+    if (trendingError) {
+      toast({
+        title: 'Error',
+        description: 'Failed to load trending products',
+        variant: 'destructive',
+      });
+    }
+  }, [dashboardError, trendingError, toast]);
 
   // Handle manual refresh
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await refetch();
-    setIsRefreshing(false);
-    
-    toast({
-      title: 'Dashboard Refreshed',
-      description: 'Latest data has been loaded',
-    });
+    try {
+      await Promise.all([
+        refetchDashboard(),
+        queryClient.invalidateQueries({ queryKey: [API.TRENDING_PRODUCTS] })
+      ]);
+      
+      toast({
+        title: 'Dashboard Refreshed',
+        description: 'Latest data has been loaded',
+      });
+    } catch (err) {
+      toast({
+        title: 'Refresh Failed',
+        description: 'Could not refresh dashboard data',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
   };
+
+  const isLoading = isDashboardLoading || isTrendingLoading;
 
   if (isLoading) {
     return <LoadingScreen />;
@@ -203,9 +240,9 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-8">
-              {dashboardData?.topProducts?.length ? (
-                dashboardData.topProducts.map((product, index) => (
-                  <div key={index} className="flex items-center">
+              {trendingProducts?.length ? (
+                trendingProducts.map((product, index) => (
+                  <div key={product.id} className="flex items-center">
                     <div className="w-10 h-10 rounded bg-primary/10 flex items-center justify-center mr-3">
                       <span className="font-medium">{index + 1}</span>
                     </div>

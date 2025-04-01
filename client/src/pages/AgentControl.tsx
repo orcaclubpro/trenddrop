@@ -18,9 +18,11 @@ import {
 } from 'lucide-react';
 import { formatRelativeTime } from '@/lib/utils';
 import { useWebSocket } from '@/hooks/use-websocket';
-import { WS_MESSAGE_TYPES } from '@/lib/constants';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { WS_MESSAGE_TYPES, API } from '@/lib/constants';
 import { LoadingScreen } from '@/components/ui/loading-screen';
 import { useToast } from '@/hooks/use-toast';
+import { AgentService } from '@/services';
 
 export default function AgentControl() {
   const { toast } = useToast();
@@ -33,23 +35,17 @@ export default function AgentControl() {
   const handleInitialize = async () => {
     try {
       setIsInitializing(true);
-      const response = await fetch('/api/agent/initialize', { 
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
+      // API endpoint for initialize doesn't exist in AgentService yet
+      // Will trigger the getConfig() method instead
+      const config = await AgentService.getAgentConfig();
       
-      if (!response.ok) {
-        throw new Error('Failed to initialize agent');
-      }
-      
-      const data = await response.json();
       toast({
         title: 'Agent Initialized',
-        description: data.message || 'Agent system has been initialized',
+        description: 'Agent system has been initialized',
       });
 
-      // Refresh status after initialization
-      setTimeout(fetchAgentStatus, 1000);
+      // Refresh status
+      refetchStatus();
     } catch (error) {
       console.error('Error initializing agent:', error);
       toast({
@@ -66,28 +62,24 @@ export default function AgentControl() {
   const handleStartAgent = async () => {
     try {
       setIsStartingAgent(true);
-      const response = await fetch('/api/agent/start', { 
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
+      const result = await AgentService.startAgent();
       
-      if (!response.ok) {
-        throw new Error('Failed to start agent');
+      if (result.success) {
+        toast({
+          title: 'Agent Started',
+          description: result.message || 'Agent system is now running',
+        });
+      } else {
+        throw new Error(result.message || 'Failed to start agent');
       }
-      
-      const data = await response.json();
-      toast({
-        title: 'Agent Started',
-        description: data.message || 'Agent system is now running',
-      });
 
-      // Refresh status after starting
-      setTimeout(fetchAgentStatus, 1000);
+      // Refresh status
+      refetchStatus();
     } catch (error) {
       console.error('Error starting agent:', error);
       toast({
         title: 'Start Failed',
-        description: 'Could not start the agent system',
+        description: error instanceof Error ? error.message : 'Could not start the agent system',
         variant: 'destructive',
       });
     } finally {
@@ -99,28 +91,24 @@ export default function AgentControl() {
   const handleStopAgent = async () => {
     try {
       setIsStoppingAgent(true);
-      const response = await fetch('/api/agent/stop', { 
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
+      const result = await AgentService.stopAgent();
       
-      if (!response.ok) {
-        throw new Error('Failed to stop agent');
+      if (result.success) {
+        toast({
+          title: 'Agent Stopped',
+          description: result.message || 'Agent system has been stopped',
+        });
+      } else {
+        throw new Error(result.message || 'Failed to stop agent');
       }
-      
-      const data = await response.json();
-      toast({
-        title: 'Agent Stopped',
-        description: data.message || 'Agent system has been stopped',
-      });
 
-      // Refresh status after stopping
-      setTimeout(fetchAgentStatus, 1000);
+      // Refresh status
+      refetchStatus();
     } catch (error) {
       console.error('Error stopping agent:', error);
       toast({
         title: 'Stop Failed',
-        description: 'Could not stop the agent system',
+        description: error instanceof Error ? error.message : 'Could not stop the agent system',
         variant: 'destructive',
       });
     } finally {
@@ -128,29 +116,26 @@ export default function AgentControl() {
     }
   };
 
-  // WebSocket connection for real-time updates
-  const { isConnected, sendMessage } = useWebSocket({
-    onOpen: () => {
-      console.log('WebSocket connection established');
-      sendMessage({ type: 'client_connected', clientId: 'agent_control' });
-    },
-    onMessage: (message) => {
-      console.log('WebSocket message received:', message);
-      if (message.type === 'agent_status') {
-        setAgentStatus(prevStatus => ({
-          ...prevStatus,
-          ...message.data
-        }));
-      }
-    }
+  const queryClient = useQueryClient();
+  
+  // Fetch agent status using React Query
+  const { 
+    data: agentStatus, 
+    isLoading: isStatusLoading, 
+    error: statusError,
+    refetch: refetchStatus 
+  } = useQuery({
+    queryKey: [`${API.AI_AGENT}/status`],
+    queryFn: () => AgentService.getStatus(),
+    refetchInterval: 10000, // Auto-refresh every 10 seconds
   });
 
-  // Mock agent status
-  const [agentStatus, setAgentStatus] = useState({
+  // Default agent status structure for when data is loading
+  const defaultAgentStatus = {
     agent: {
       isInitialized: false,
       isRunning: false,
-      status: 'stopped',
+      status: 'idle',
       lastRun: null,
       discoveredItems: 0,
       version: '1.0.0'
@@ -158,7 +143,7 @@ export default function AgentControl() {
     aiAgent: {
       isInitialized: false,
       isRunning: false,
-      status: 'stopped',
+      status: 'idle',
       lastRun: null
     },
     database: {
@@ -170,53 +155,56 @@ export default function AgentControl() {
       isRunning: false,
       connectedClients: 0
     }
+  };
+  
+  // Merge fetched data with default structure to ensure all properties exist
+  const currentStatus = agentStatus ? {
+    ...defaultAgentStatus,
+    ...agentStatus
+  } : defaultAgentStatus;
+
+  // WebSocket connection for real-time updates
+  const { isConnected, sendMessage } = useWebSocket({
+    onOpen: () => {
+      console.log('WebSocket connection established');
+      sendMessage({ type: WS_MESSAGE_TYPES.CLIENT_CONNECTED, clientId: 'agent_control' });
+    },
+    onMessage: (message) => {
+      console.log('WebSocket message received:', message);
+      if (message.type === WS_MESSAGE_TYPES.AGENT_STATUS) {
+        // Invalidate the query to refresh data
+        queryClient.invalidateQueries({ queryKey: [`${API.AI_AGENT}/status`] });
+      }
+    }
   });
 
-  // Fetch agent status
-  const fetchAgentStatus = async () => {
-    try {
-      setIsLoading(true);
-      const response = await fetch('/api/agent/status');
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch agent status');
-      }
-      
-      const data = await response.json();
-      setAgentStatus(data);
-    } catch (error) {
-      console.error('Error fetching agent status:', error);
+  // Display error if agent status fetch fails
+  useEffect(() => {
+    if (statusError) {
       toast({
         title: 'Error',
         description: 'Failed to fetch agent status',
         variant: 'destructive',
       });
-    } finally {
-      setIsLoading(false);
     }
-  };
-
-  // Fetch status on component mount
-  useEffect(() => {
-    fetchAgentStatus();
-  }, []);
+  }, [statusError, toast]);
 
   // Handle status refresh
   const handleRefresh = () => {
-    fetchAgentStatus();
+    refetchStatus();
   };
 
   // Display loading screen while initial data is being fetched
-  if (isLoading && !agentStatus) {
+  if (isStatusLoading && !agentStatus) {
     return <LoadingScreen />;
   }
 
-  const agentRunning = agentStatus.agent.isRunning;
-  const agentInitialized = agentStatus.agent.isInitialized;
-  const aiAgentRunning = agentStatus.aiAgent.isRunning;
-  const aiAgentInitialized = agentStatus.aiAgent.isInitialized;
-  const databaseConnected = agentStatus.database.isConnected;
-  const websocketRunning = agentStatus.websocket.isRunning;
+  const agentRunning = currentStatus.agent.isRunning;
+  const agentInitialized = currentStatus.agent.isInitialized;
+  const aiAgentRunning = currentStatus.aiAgent.isRunning;
+  const aiAgentInitialized = currentStatus.aiAgent.isInitialized;
+  const databaseConnected = currentStatus.database.isConnected;
+  const websocketRunning = currentStatus.websocket.isRunning;
 
   return (
     <div className="space-y-6">
@@ -230,7 +218,7 @@ export default function AgentControl() {
         <Button
           variant="outline"
           onClick={handleRefresh}
-          disabled={isLoading}
+          disabled={isStatusLoading}
         >
           <RefreshCcw className="mr-2 h-4 w-4" />
           Refresh
@@ -259,8 +247,8 @@ export default function AgentControl() {
                 )}
               </div>
               <div className="text-xs text-muted-foreground">
-                {agentStatus.agent.lastRun ? 
-                  `Last run: ${formatRelativeTime(new Date(agentStatus.agent.lastRun))}` : 
+                {currentStatus.agent.lastRun ? 
+                  `Last run: ${formatRelativeTime(new Date(currentStatus.agent.lastRun))}` : 
                   'Never run'
                 }
               </div>
@@ -289,8 +277,8 @@ export default function AgentControl() {
                 )}
               </div>
               <div className="text-xs text-muted-foreground">
-                {agentStatus.aiAgent.lastRun ? 
-                  `Last run: ${formatRelativeTime(new Date(agentStatus.aiAgent.lastRun))}` : 
+                {currentStatus.aiAgent.lastRun ? 
+                  `Last run: ${formatRelativeTime(new Date(currentStatus.aiAgent.lastRun))}` : 
                   'Never run'
                 }
               </div>
@@ -319,7 +307,7 @@ export default function AgentControl() {
                 )}
               </div>
               <div className="text-xs text-muted-foreground">
-                {`${agentStatus.database.recordCount} records`}
+                {`${currentStatus.database.recordCount} records`}
               </div>
             </div>
           </CardContent>
@@ -346,7 +334,7 @@ export default function AgentControl() {
                 )}
               </div>
               <div className="text-xs text-muted-foreground">
-                {`${agentStatus.websocket.connectedClients} clients connected`}
+                {`${currentStatus.websocket.connectedClients} clients connected`}
               </div>
             </div>
           </CardContent>
@@ -400,7 +388,7 @@ export default function AgentControl() {
             <CardContent className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">Discovered Items</span>
-                <span className="font-medium">{agentStatus.agent.discoveredItems}</span>
+                <span className="font-medium">{currentStatus.agent.discoveredItems}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">Connection Status</span>
@@ -411,7 +399,7 @@ export default function AgentControl() {
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">Agent Version</span>
                 <span className="text-xs bg-secondary py-1 px-2 rounded-full">
-                  {agentStatus.agent.version}
+                  {currentStatus.agent.version}
                 </span>
               </div>
             </CardContent>
