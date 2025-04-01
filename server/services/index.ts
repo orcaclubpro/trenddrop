@@ -6,7 +6,7 @@
 
 // Export common services
 export { webSocketService } from './common/WebSocketService.js';
-export { databaseService } from './common/DatabaseService.js';
+export { default as databaseService } from './database-service.js';
 
 // Export domain services
 export { productService } from './ProductService.js';

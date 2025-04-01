@@ -56,25 +56,57 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       socketRef.current.onclose = null; // Remove the existing onclose handler
       socketRef.current.onerror = null; // Remove the existing onerror handler
       socketRef.current.onmessage = null; // Remove the existing onmessage handler
-      socketRef.current.close();
+      try {
+        socketRef.current.close();
+      } catch (error) {
+        console.error('Error closing existing WebSocket:', error);
+      }
       socketRef.current = null;
     }
     
     try {
-      const ws = new WebSocket(API.WEBSOCKET);
+      // Explicitly construct the WebSocket URL to ensure it's correct
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.host;
+      const wsUrl = `${protocol}//${host}/ws`;
+      console.log(`Connecting to WebSocket at: ${wsUrl}`);
+      
+      const ws = new WebSocket(wsUrl);
+      
+      // Set a connection timeout to prevent hanging in connecting state
+      const connectionTimeout = setTimeout(() => {
+        if (ws.readyState !== WebSocket.OPEN) {
+          console.log('WebSocket connection timeout');
+          ws.close();
+          setIsConnecting(false);
+          
+          // Try to reconnect
+          if (reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
+            reconnectTimeoutRef.current = setTimeout(() => {
+              reconnectAttemptsRef.current += 1;
+              connect();
+            }, RECONNECT_INTERVAL);
+          }
+        }
+      }, 5000); // 5 second timeout
       
       ws.onopen = () => {
         console.log('WebSocket connection established');
+        clearTimeout(connectionTimeout);
         setIsConnected(true);
         setIsConnecting(false);
         reconnectAttemptsRef.current = 0;
         
         // Send client connected message
-        ws.send(JSON.stringify({ 
-          type: WS_MESSAGE_TYPES.CLIENT_CONNECTED,
-          clientId: 'client-' + Date.now(),
-          timestamp: new Date().toISOString()
-        }));
+        try {
+          ws.send(JSON.stringify({ 
+            type: WS_MESSAGE_TYPES.CLIENT_CONNECTED,
+            clientId: 'client-' + Date.now(),
+            timestamp: new Date().toISOString()
+          }));
+        } catch (error) {
+          console.error('Error sending client_connected message:', error);
+        }
 
         // Setup ping interval for keeping connection alive
         if (pingIntervalRef.current) {
@@ -83,17 +115,26 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         
         pingIntervalRef.current = setInterval(() => {
           if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ 
-              type: 'ping',
-              timestamp: new Date().toISOString(),
-              clientId: 'client-' + Date.now()
-            }));
+            try {
+              ws.send(JSON.stringify({ 
+                type: 'ping',
+                timestamp: new Date().toISOString(),
+                clientId: 'client-' + Date.now()
+              }));
+            } catch (error) {
+              console.error('Error sending ping:', error);
+              // If we can't send a ping, the connection is likely dead
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.close();
+              }
+            }
           }
         }, PING_INTERVAL);
       };
 
       ws.onclose = (event) => {
         console.log(`WebSocket closed with code: ${event.code}, reason: ${event.reason}`);
+        clearTimeout(connectionTimeout);
         setIsConnected(false);
         setIsConnecting(false);
         
@@ -123,7 +164,14 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       ws.onerror = (error) => {
         console.error('WebSocket error:', error);
+        clearTimeout(connectionTimeout);
         setIsConnecting(false);
+        
+        // If we get an error and the socket is still in CONNECTING state,
+        // it probably means there's a network issue or the server is unreachable
+        if (ws.readyState === WebSocket.CONNECTING) {
+          ws.close();
+        }
       };
 
       ws.onmessage = (event) => {

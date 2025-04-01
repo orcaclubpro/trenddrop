@@ -20,8 +20,8 @@ export const API = {
   EXPORT_PRODUCT: (id: number) => `/api/export/product/${id}`,
   HEALTH: '/api/health',
   AI_AGENT: '/api/agent',
-  WEBSOCKET: (window.location.protocol === 'https:' ? 'wss:' : 'ws:') + 
-             '//' + window.location.host + '/ws'
+  WEBSOCKET: `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//` + 
+             `${window.location.host}/ws`
 };
 
 /**

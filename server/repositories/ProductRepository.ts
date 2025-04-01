@@ -7,7 +7,7 @@
 import { eq, gte, and, desc, asc, sql, like, or } from 'drizzle-orm';
 import * as schema from '../../shared/schema.js';
 import { BaseRepository } from './Repository.js';
-import { databaseService } from '../services/common/DatabaseService.js';
+import databaseService from '../services/database-service.js';
 import { eventBus } from '../core/EventBus.js';
 import { log } from '../vite.js';
 
