@@ -1,0 +1,87 @@
+// src/data/database.ts
+
+import { inject, injectable } from 'inversify';
+import { TYPES } from '../core/types';
+import { Logger } from '../core/logger';
+import { EventEmitter } from 'events';
+import { ConnectionOptions, createConnection } from 'your-orm-library';
+
+@injectable()
+export class Database {
+  private connection: any = null;
+  private connectionRetries = 0;
+  private readonly MAX_RETRIES = 5;
+  private initialized = false;
+  
+  constructor(
+    @inject(TYPES.Logger) private logger: Logger,
+    @inject(TYPES.EventEmitter) private eventEmitter: EventEmitter,
+    @inject(TYPES.Config) private config: any
+  ) {}
+  
+  /**
+   * Initialize database with exponential backoff retry
+   */
+  public async initialize(): Promise<boolean> {
+    if (this.initialized) return true;
+    
+    try {
+      const options: ConnectionOptions = {
+        // Connection options from config
+        host: this.config.database.host,
+        port: this.config.database.port,
+        // Other options...
+        
+        // Connection pool settings
+        pool: {
+          min: 2,
+          max: 10,
+          idleTimeoutMillis: 30000
+        }
+      };
+      
+      this.connection = await createConnection(options);
+      
+      // Validate connection with health check
+      await this.healthCheck();
+      
+      this.initialized = true;
+      this.connectionRetries = 0;
+      this.eventEmitter.emit('database:connected');
+      
+      this.logger.info('Database initialized successfully');
+      return true;
+    } catch (error) {
+      this.logger.error(`Database initialization failed: ${error}`);
+      
+      if (this.connectionRetries < this.MAX_RETRIES) {
+        this.connectionRetries++;
+        
+        // Calculate delay with exponential backoff
+        const delay = Math.min(
+          10000 * Math.pow(2, this.connectionRetries - 1),
+          10 * 60 * 1000 // Max 10 minutes
+        );
+        
+        this.logger.info(`Retrying database connection in ${delay / 1000}s`);
+        
+        // Broadcast retry status
+        this.eventEmitter.emit('database:retry', {
+          retryCount: this.connectionRetries,
+          maxRetries: this.MAX_RETRIES,
+          delaySeconds: delay / 1000
+        });
+        
+        // Schedule retry
+        setTimeout(() => this.initialize(), delay);
+      } else {
+        this.logger.error('Maximum database retries reached');
+        this.eventEmitter.emit('database:error', { error });
+      }
+      
+      return false;
+    }
+  }
+  
+  // Other database methods...
+}

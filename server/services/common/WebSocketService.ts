@@ -1,7 +1,8 @@
 /**
- * WebSocketService - Unified WebSocket management
+ * WebSocketService - Manage WebSocket connections
  * 
- * This service handles WebSocket connections, client management and message broadcasting.
+ * This service handles WebSocket connections and message broadcasting
+ * for real-time updates in the TrendDrop application.
  */
 
 import WebSocket from 'ws';
@@ -9,30 +10,29 @@ import { Server } from 'http';
 import { eventBus } from '../../core/EventBus.js';
 import { log } from '../../vite.js';
 
-// Client information type
-interface ClientInfo {
-  id: string;
-  connectedAt: Date;
-  lastActivity: Date;
-  isAlive: boolean;
-  clientInfo: Record<string, any>;
+/**
+ * WebSocket client type
+ */
+interface WSClient extends WebSocket {
+  isAlive?: boolean;
+  clientId?: string;
+  clientType?: string;
+  connectedAt?: Date;
+  lastActivity?: Date;
 }
 
-// WebSocket message type
-export interface WebSocketMessage {
-  type: string;
-  [key: string]: any;
-}
-
+/**
+ * WebSocketService class
+ */
 export class WebSocketService {
   private static instance: WebSocketService;
   private wss: WebSocket.Server | null = null;
-  private clients = new Map<WebSocket, ClientInfo>();
-  private pingInterval?: NodeJS.Timeout;
   private isInitialized = false;
-
+  private heartbeatInterval: NodeJS.Timeout | null = null;
+  private clients: Set<WSClient> = new Set();
+  
   private constructor() {}
-
+  
   /**
    * Get the singleton instance
    */
@@ -42,278 +42,283 @@ export class WebSocketService {
     }
     return WebSocketService.instance;
   }
-
+  
   /**
    * Initialize the WebSocket service
    */
   public initialize(server: Server): boolean {
-    if (this.isInitialized) {
-      log('WebSocket service already initialized', 'ws-service');
-      return true;
-    }
-
     try {
+      if (this.isInitialized) {
+        return true;
+      }
+      
       // Create WebSocket server
-      this.wss = new WebSocket.Server({
-        server,
-        path: '/ws',
-        clientTracking: true,
-        maxPayload: 1024 * 1024 // 1MB
-      });
-
-      // Setup connection handler
-      this.wss.on('connection', this.handleConnection.bind(this));
-
-      // Setup ping interval for heartbeat
-      this.pingInterval = setInterval(this.pingClients.bind(this), 30000);
-
-      // Setup close handler
-      this.wss.on('close', () => {
-        if (this.pingInterval) {
-          clearInterval(this.pingInterval);
-        }
-      });
-
+      this.wss = new WebSocket.Server({ server });
+      
+      // Set up connection handler
+      this.setupConnectionHandler();
+      
+      // Set up heartbeat
+      this.setupHeartbeat();
+      
+      // Set up event listeners
+      this.setupEventListeners();
+      
       this.isInitialized = true;
-      log('WebSocket service initialized successfully', 'ws-service');
+      log('WebSocket service initialized', 'websocket');
+      
       return true;
     } catch (error) {
-      log(`Error initializing WebSocket service: ${error}`, 'ws-service');
+      log(`WebSocket service initialization error: ${error}`, 'websocket');
       return false;
     }
   }
-
+  
   /**
-   * Handle new WebSocket connection
+   * Set up the connection handler
    */
-  private handleConnection(ws: WebSocket, req: any): void {
-    const clientId = `client-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-    const clientIp = req.socket.remoteAddress || 'unknown';
-    const userAgent = req.headers['user-agent'] || 'unknown';
-
-    log(`WebSocket client connected: ${clientId} (${clientIp})`, 'ws-service');
-
-    // Store client info
-    this.clients.set(ws, {
-      id: clientId,
-      connectedAt: new Date(),
-      lastActivity: new Date(),
-      isAlive: true,
-      clientInfo: {
-        ip: clientIp,
-        userAgent,
-        url: req.url
-      }
-    });
-
-    // Send initial state to client
-    ws.send(JSON.stringify({
-      type: "connection_established",
-      clientId: clientId,
-      message: "Connected to TrendDrop real-time updates",
-      timestamp: new Date().toISOString()
-    }));
-
-    // Setup pong response handler
-    ws.on('pong', () => {
-      this.heartbeat(ws);
-    });
-
-    // Handle client messages
-    ws.on('message', (message) => {
-      try {
-        // Update client activity timestamp
-        const client = this.clients.get(ws);
-        if (client) {
-          client.lastActivity = new Date();
-        }
-
-        // Parse message
-        const parsedMessage = JSON.parse(message.toString()) as WebSocketMessage;
+  private setupConnectionHandler(): void {
+    if (!this.wss) return;
+    
+    this.wss.on('connection', (ws: WSClient) => {
+      // Initialize client
+      ws.isAlive = true;
+      ws.clientId = this.generateClientId();
+      ws.connectedAt = new Date();
+      ws.lastActivity = new Date();
+      
+      log(`Client connected: ${ws.clientId}`, 'websocket');
+      
+      // Add to clients set
+      this.clients.add(ws);
+      
+      // Broadcast updated client count
+      this.broadcastClientCount();
+      
+      // Set up message handler
+      ws.on('message', (message: WebSocket.Data) => {
+        ws.lastActivity = new Date();
+        this.handleMessage(ws, message);
+      });
+      
+      // Set up close handler
+      ws.on('close', () => {
+        this.clients.delete(ws);
+        log(`Client disconnected: ${ws.clientId}`, 'websocket');
         
-        // Handle client_connected message
-        if (parsedMessage.type === 'client_connected') {
-          log(`Received client_connected message from ${clientId}`, 'ws-service');
-          
-          // Publish event for services to respond
-          eventBus.publish('ws:client_connected', { clientId, ws });
-          
-          // No need to broadcast this message
+        // Broadcast updated client count
+        this.broadcastClientCount();
+      });
+      
+      // Set up error handler
+      ws.on('error', (error) => {
+        log(`WebSocket error for client ${ws.clientId}: ${error}`, 'websocket');
+      });
+      
+      // Set up pong handler for heartbeat
+      ws.on('pong', () => {
+        ws.isAlive = true;
+        ws.lastActivity = new Date();
+      });
+    });
+  }
+  
+  /**
+   * Set up heartbeat to detect and clean up stale connections
+   */
+  private setupHeartbeat(): void {
+    // Clear any existing interval
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+    }
+    
+    // Set up heartbeat interval (30 seconds)
+    this.heartbeatInterval = setInterval(() => {
+      if (!this.wss) return;
+      
+      this.clients.forEach((ws) => {
+        if (ws.isAlive === false) {
+          // Connection is stale, terminate it
+          log(`Terminating stale connection: ${ws.clientId}`, 'websocket');
+          ws.terminate();
+          this.clients.delete(ws);
           return;
         }
         
-        // Forward message to event bus
-        eventBus.publish(`ws:message:${parsedMessage.type}`, { 
-          message: parsedMessage, 
-          clientId,
-          ws
-        });
-        
-        // Also publish to a general message event
-        eventBus.publish('ws:message', { 
-          message: parsedMessage, 
-          clientId,
-          ws
-        });
-      } catch (error) {
-        log(`Error processing WebSocket message: ${error}`, 'ws-service');
-      }
-    });
-
-    // Handle disconnect
-    ws.on('close', () => {
-      log(`WebSocket client disconnected: ${clientId}`, 'ws-service');
-      this.clients.delete(ws);
-      
-      // Publish client disconnected event
-      eventBus.publish('ws:client_disconnected', { clientId });
-    });
-
-    // Handle errors
-    ws.on('error', (error) => {
-      log(`WebSocket error for client ${clientId}: ${error}`, 'ws-service');
-      
-      // Publish error event
-      eventBus.publish('ws:error', { clientId, error });
-    });
-  }
-
-  /**
-   * Update client heartbeat
-   */
-  private heartbeat(ws: WebSocket): void {
-    const client = this.clients.get(ws);
-    if (client) {
-      client.isAlive = true;
-      client.lastActivity = new Date();
-    }
-  }
-
-  /**
-   * Ping all clients to check aliveness
-   */
-  private pingClients(): void {
-    this.clients.forEach((client, ws) => {
-      if (!client.isAlive) {
-        log(`Closing inactive WebSocket: ${client.id}`, 'ws-service');
-        this.clients.delete(ws);
-        return ws.terminate();
-      }
-
-      // Mark as not alive until pong received
-      client.isAlive = false;
-
-      // Send ping
-      try {
+        // Mark as not alive until pong received
+        ws.isAlive = false;
         ws.ping();
-      } catch (error) {
-        log(`Error sending ping: ${error}`, 'ws-service');
-        this.clients.delete(ws);
-        ws.terminate();
-      }
-    });
-
-    // Broadcast status to all clients every 30 seconds
-    this.broadcastAgentStatus();
+      });
+      
+      // Broadcast updated client count
+      this.broadcastClientCount();
+    }, 30000);
   }
-
+  
   /**
-   * Broadcast a message to all connected clients
+   * Set up event listeners
    */
-  public broadcast(message: WebSocketMessage): number {
-    if (!this.isInitialized || !this.wss) {
-      log('WebSocket service not initialized', 'ws-service');
-      return 0;
+  private setupEventListeners(): void {
+    eventBus.subscribe('app:shutdown', () => {
+      this.shutdown();
+    });
+  }
+  
+  /**
+   * Handle incoming messages
+   */
+  private handleMessage(ws: WSClient, message: WebSocket.Data): void {
+    try {
+      const data = JSON.parse(message.toString());
+      log(`Received message from client ${ws.clientId}: ${JSON.stringify(data)}`, 'websocket');
+      
+      // Handle client identification
+      if (data.type === 'client_connected') {
+        ws.clientType = data.clientType || 'unknown';
+        log(`Client ${ws.clientId} identified as type: ${ws.clientType}`, 'websocket');
+        
+        // Send current application state
+        this.sendInitialState(ws);
+      }
+      
+      // Publish message as event
+      eventBus.publish('ws:message', {
+        clientId: ws.clientId,
+        clientType: ws.clientType,
+        data
+      });
+    } catch (error) {
+      log(`Error handling message: ${error}`, 'websocket');
     }
-
-    const messageStr = JSON.stringify(message);
-    let clientCount = 0;
-
-    this.clients.forEach((client, ws) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(messageStr);
-        clientCount++;
-      }
-    });
-
-    return clientCount;
   }
-
+  
   /**
-   * Send a message to a specific client
+   * Send initial application state to client
    */
-  public sendToClient(clientId: string, message: WebSocketMessage): boolean {
-    let sent = false;
-
-    this.clients.forEach((client, ws) => {
-      if (client.id === clientId && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(message));
-        sent = true;
+  private sendInitialState(ws: WSClient): void {
+    // Send AI agent status
+    eventBus.publish('ai_agent:request_status', {
+      clientId: ws.clientId,
+      clientType: ws.clientType
+    });
+    
+    // Send database status
+    eventBus.publish('db:request_status', {
+      clientId: ws.clientId,
+      clientType: ws.clientType
+    });
+  }
+  
+  /**
+   * Broadcast message to all clients
+   */
+  public broadcast(data: any): void {
+    if (this.clients.size === 0) {
+      return;
+    }
+    
+    const message = typeof data === 'string' ? data : JSON.stringify(data);
+    log(`Broadcasting message to ${this.clients.size} clients: ${message.substring(0, 100)}${message.length > 100 ? '...' : ''}`, 'websocket');
+    
+    this.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(message);
       }
     });
-
-    return sent;
   }
-
+  
+  /**
+   * Send message to a specific client
+   */
+  public sendToClient(clientId: string, data: any): boolean {
+    const message = typeof data === 'string' ? data : JSON.stringify(data);
+    
+    for (const client of this.clients) {
+      if (client.clientId === clientId && client.readyState === WebSocket.OPEN) {
+        client.send(message);
+        return true;
+      }
+    }
+    
+    return false;
+  }
+  
+  /**
+   * Broadcast client count
+   */
+  private broadcastClientCount(): void {
+    this.broadcast({
+      type: 'client_count',
+      count: this.clients.size,
+      timestamp: new Date().toISOString()
+    });
+    
+    eventBus.publish('ws:client_count', {
+      count: this.clients.size,
+      timestamp: new Date().toISOString()
+    });
+  }
+  
+  /**
+   * Generate a unique client ID
+   */
+  private generateClientId(): string {
+    return Math.random().toString(36).substring(2, 15) + 
+           Math.random().toString(36).substring(2, 15);
+  }
+  
   /**
    * Get the number of connected clients
    */
   public getClientCount(): number {
     return this.clients.size;
   }
-
+  
   /**
-   * Get client information
+   * Get client information (for monitoring/debugging)
    */
-  public getClientInfo(): { count: number, clients: any[] } {
-    const clientList = Array.from(this.clients.entries()).map(([ws, info]) => ({
-      id: info.id,
-      connectedAt: info.connectedAt,
-      lastActivity: info.lastActivity,
-      ip: info.clientInfo.ip,
-      userAgent: info.clientInfo.userAgent,
-      readyState: ws.readyState
+  public getClientInfo(): any[] {
+    return Array.from(this.clients).map(client => ({
+      id: client.clientId,
+      type: client.clientType || 'unknown',
+      connectedAt: client.connectedAt,
+      lastActivity: client.lastActivity,
+      isAlive: client.isAlive
     }));
-
-    return {
-      count: this.clients.size,
-      clients: clientList
-    };
   }
-
-  /**
-   * Broadcast the current agent status to all clients
-   */
-  private broadcastAgentStatus(): void {
-    // This will be filled in later when integrated with the agent service
-    const agentStatus = {
-      type: 'agent_status',
-      status: 'running',
-      timestamp: new Date().toISOString()
-    };
-
-    // Publish the agent status to the event bus
-    eventBus.publish('agent:status', agentStatus);
-    
-    // The actual broadcast will be handled by event subscribers
-  }
-
+  
   /**
    * Shutdown the WebSocket service
    */
   public shutdown(): void {
-    if (this.pingInterval) {
-      clearInterval(this.pingInterval);
+    log('Shutting down WebSocket service...', 'websocket');
+    
+    // Clear heartbeat interval
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
     }
-
+    
+    // Close all client connections
+    this.clients.forEach((client) => {
+      try {
+        client.terminate();
+      } catch (error) {
+        // Ignore errors when closing
+      }
+    });
+    
+    // Clear clients set
+    this.clients.clear();
+    
+    // Close WebSocket server
     if (this.wss) {
       this.wss.close();
       this.wss = null;
     }
-
-    this.clients.clear();
+    
     this.isInitialized = false;
-    log('WebSocket service shutdown', 'ws-service');
+    log('WebSocket service shut down', 'websocket');
   }
 }
 

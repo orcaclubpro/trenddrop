@@ -1,0 +1,158 @@
+Streamlining the TrendDrop Architecture: Eliminating Redundancy
+After analyzing the TrendDrop codebase, I've identified several opportunities to streamline the architecture and eliminate redundancies that are currently adding unnecessary complexity and maintenance overhead.
+Critical Redundancy Issues
+1. Dual Backend Implementation (Node.js + Python) This pattern forces you to maintain:
+
+Two separate dependency ecosystems
+Duplicate schema definitions
+Parallel initialization logic
+Redundant error handling
+
+2. Service Layer Duplication 3. Data Access Fragmentation
+The current implementation uses:
+
+Drizzle ORM (TypeScript)
+SQLAlchemy (Python)
+Direct SQL queries (various places)
+
+Streamlined Architecture Proposal // Choose one technology stack to eliminate duplication
+// Recommendation: Node.js with TypeScript for consistency with frontend
+
+// Consolidated backend structure
+src/
+├── api/              // All API endpoints
+├── services/         // Business logic services
+├── data/             // Data access layer (repositories)
+├── core/             // Core functionality and utilities
+└── workers/          // Background processing 2. Implement Clean Architecture Pattern // Example of streamlined service implementation
+export class ProductService {
+  constructor(
+    private readonly productRepository: ProductRepository,
+    private readonly trendAnalyzer: TrendAnalyzer,
+    private readonly eventEmitter: EventEmitter
+  ) {}
+  
+  // Service logic with clear dependencies
+} // Single ORM implementation with repository pattern
+export abstract class BaseRepository<T, ID> {
+  constructor(protected readonly db: Database) {}
+  
+  abstract findById(id: ID): Promise<T | undefined>;
+  // Other common methods
+}
+
+// Typed repositories extend the base
+export class ProductRepository extends BaseRepository<Product, number> {
+  // Specific implementation
+} // src/core/container.ts
+import { Container } from 'inversify';
+import { TYPES } from './types';
+import { Database } from '../data/database';
+import { Logger } from './logger';
+import { EventEmitter } from 'events';
+import { AgentSystem } from './agent/agent-system';
+import { ProductRepository } from '../data/repositories/product-repository';
+import { ProductService } from '../services/product-service';
+// More imports...
+
+export const container = new Container();
+
+// Core services
+container.bind<Logger>(TYPES.Logger).to(Logger).inSingletonScope();
+container.bind<EventEmitter>(TYPES.EventEmitter).toConstantValue(new EventEmitter());
+container.bind<Database>(TYPES.Database).to(Database).inSingletonScope();
+
+// Repositories
+container.bind<ProductRepository>(TYPES.ProductRepository).to(ProductRepository).inSingletonScope();
+
+// Business services
+container.bind<ProductService>(TYPES.ProductService).to(ProductService).inSingletonScope();
+
+// Agent system
+container.bind<AgentSystem>(TYPES.AgentSystem).to(AgentSystem).inSingletonScope();
+
+// src/core/event-bus.ts
+import { EventEmitter } from 'events';
+import { injectable, inject } from 'inversify';
+import { TYPES } from './types';
+import { Logger } from './logger';
+
+@injectable()
+export class EventBus {
+  constructor(
+    @inject(TYPES.EventEmitter) private emitter: EventEmitter,
+    @inject(TYPES.Logger) private logger: Logger
+  ) {}
+  
+  public publish(event: string, data: any): void {
+    this.logger.debug(`Publishing event: ${event}`);
+    this.emitter.emit(event, data);
+  }
+  
+  public subscribe(event: string, handler: (data: any) => void): () => void {
+    this.emitter.on(event, handler);
+    
+    // Return unsubscribe function
+    return () => this.emitter.off(event, handler);
+  }
+} // src/api/routes/product-routes.ts
+import { Router } from 'express';
+import { container } from '../../core/container';
+import { TYPES } from '../../core/types';
+import { ProductController } from '../controllers/product-controller';
+
+export function registerProductRoutes(router: Router): void {
+  const controller = container.get<ProductController>(TYPES.ProductController);
+  
+  router.get('/products', controller.getProducts.bind(controller));
+  router.get('/products/:id', controller.getProduct.bind(controller));
+  router.post('/products', controller.createProduct.bind(controller));
+  router.put('/products/:id', controller.updateProduct.bind(controller));
+  router.delete('/products/:id', controller.deleteProduct.bind(controller));
+} // src/core/config.ts
+import { config as dotenvConfig } from 'dotenv';
+import { injectable } from 'inversify';
+
+@injectable()
+export class Config {
+  private config: Record<string, any> = {};
+  
+  constructor() {
+    // Load environment variables
+    dotenvConfig();
+    
+    // Basic configuration
+    this.config = {
+      server: {
+        port: process.env.PORT || 5000,
+        env: process.env.NODE_ENV || 'development'
+      },
+      database: {
+        url: process.env.DATABASE_URL,
+        maxConnections: parseInt(process.env.DB_MAX_CONNECTIONS || '10'),
+        connectionTimeout: parseInt(process.env.DB_CONNECTION_TIMEOUT || '30000')
+      },
+      agent: {
+        discoverInterval: parseInt(process.env.DISCOVER_INTERVAL || '3600000'),
+        maxProducts: parseInt(process.env.MAX_PRODUCTS || '1000')
+      },
+      // Other configuration sections...
+    };
+  }
+  
+  public get<T>(key: string, defaultValue?: T): T {
+    // Support nested keys like 'database.url'
+    const keys = key.split('.');
+    let value: any = this.config;
+    
+    for (const k of keys) {
+      if (value && typeof value === 'object' && k in value) {
+        value = value[k];
+      } else {
+        return defaultValue as T;
+      }
+    }
+    
+    return (value as T) ?? defaultValue as T;
+  }
+}
