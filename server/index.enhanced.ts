@@ -6,83 +6,72 @@
  */
 
 import express, { Express, Request, Response, NextFunction } from 'express';
-import { createServer, Server } from 'http';
-import session from 'express-session';
-import { eventBus } from './core/EventBus.js';
-import { appOrchestrator } from './core/AppOrchestrator.js';
-import { enhancedDatabaseService } from './services/common/EnhancedDatabaseService.js';
-import { webSocketService } from './services/common/WebSocketService.js';
-import { webSocketEventHandler } from './services/common/WebSocketEventHandler.js';
-import { registerRoutes } from './routes.js';
-import { setupVite, serveStatic, log } from './vite.js';
-import { enhancedAIAgentService, initializeEnhancedAIAgent, startEnhancedAIAgent } from './services/ai/EnhancedAIAgentService.js';
+import { Server, createServer } from 'http';
+import WebSocket from 'ws';
+import { injectable, inject } from 'inversify';
 
-// Constants
-const PORT = process.env.PORT || 5000;
-const HOST = process.env.HOST || '0.0.0.0';
-const SESSION_SECRET = process.env.SESSION_SECRET || 'trenddrop-secret-key';
-
-// Initialize the application
-initializeApp();
+// Import core services from the new architecture
+import { 
+  container, TYPES, Logger, 
+  Config, Database, EventBus 
+} from '../src';
+import { log, setupVite, serveStatic } from './vite';
 
 /**
  * Main application initialization function
  */
 async function initializeApp(): Promise<void> {
   try {
+    // Get core services from the container
+    const logger = container.get<Logger>(TYPES.Logger);
+    const config = container.get<Config>(TYPES.Config);
+    const database = container.get<Database>(TYPES.Database);
+    const eventBus = container.get<EventBus>(TYPES.EventBus);
+    
+    logger.info('Starting TrendDrop server...', 'server');
+    
+    // Initialize the database connection
+    logger.info('Initializing database...', 'server');
+    const dbInitialized = await database.initialize();
+    
+    if (!dbInitialized) {
+      throw new Error('Failed to initialize database connection');
+    }
+    
     // Create Express app and HTTP server
     const app: Express = express();
     const server: Server = createServer(app);
     
-    log('Starting TrendDrop application initialization...', 'express');
-    
-    // Configure basic middleware
+    // Set up middleware
     setupMiddleware(app);
     
-    // Register app components with the orchestrator
-    registerAppComponents(server);
-    
-    // Initialize the application with the orchestrator
-    const success = await appOrchestrator.initialize(server);
-    
-    if (!success) {
-      log('Application initialization failed', 'express');
-      process.exit(1);
-      return;
-    }
-    
-    // Register API routes
-    registerRoutes(app);
-    
-    // Set up Vite for development
-    await setupVite(app, server);
-    
-    // Serve static files in production
+    // Set up static file serving for production builds
     serveStatic(app);
     
-    // Global error handler
+    // Set up Vite middleware for development
+    await setupVite(app, server);
+    
+    // Set up WebSocket server
+    setupWebSocketServer(server, eventBus, logger);
+    
+    // Register components
+    registerAppComponents(server);
+    
+    // Set up error handler
     setupErrorHandler(app);
     
-    // Start listening
-    server.listen(PORT, HOST as string, () => {
-      log(`TrendDrop application running on port ${PORT} and host ${HOST}`, 'express');
+    // Start the server
+    const port = config.get<number>('server.port', 3000);
+    const host = config.get<string>('server.host', '0.0.0.0');
+    
+    server.listen(port, () => {
+      logger.info(`Server listening on http://${host}:${port}`, 'server');
       
-      // Now, start the AI agent if database is initialized
-      if (enhancedDatabaseService.getHealthStatus().initialized) {
-        startAIAgent();
-      } else {
-        // Set up a listener for database connection
-        const dbConnectedListener = (data: any) => {
-          log('Database connected, starting AI agent...', 'express');
-          startAIAgent();
-          eventBus.unsubscribe('db:connected', dbConnectedListener);
-        };
-        
-        eventBus.subscribe('db:connected', dbConnectedListener);
-      }
+      // Start optional services
+      startAIAgent();
     });
   } catch (error) {
-    log(`Fatal error during application initialization: ${error}`, 'express');
+    log(`Server initialization failed: ${error}`, 'server-error');
     process.exit(1);
   }
 }
@@ -91,29 +80,13 @@ async function initializeApp(): Promise<void> {
  * Set up Express middleware
  */
 function setupMiddleware(app: Express): void {
-  // Parse JSON and URL-encoded bodies
+  // Basic middleware
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
   
-  // Set up session
-  app.use(session({
-    secret: SESSION_SECRET,
-    resave: false,
-    saveUninitialized: true,
-    cookie: { secure: process.env.NODE_ENV === 'production' }
-  }));
-  
-  // CORS headers
-  app.use((req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    next();
-  });
-  
-  // Request logging
-  app.use((req, res, next) => {
-    log(`${req.method} ${req.path}`, 'express');
+  // Add request logging middleware
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    log(`${req.method} ${req.url}`, 'express');
     next();
   });
 }
@@ -122,26 +95,7 @@ function setupMiddleware(app: Express): void {
  * Register application components with the orchestrator
  */
 function registerAppComponents(server: Server): void {
-  // Register core components (database, WebSocket)
-  appOrchestrator.registerCoreComponents();
-  
-  // Register WebSocket event handler
-  appOrchestrator.registerComponent({
-    name: 'websocket-event-handler',
-    dependencies: ['websocket'],
-    initialize: async () => {
-      return webSocketEventHandler.initialize();
-    }
-  });
-  
-  // Register AI Agent
-  appOrchestrator.registerComponent({
-    name: 'ai-agent',
-    dependencies: ['database', 'websocket'],
-    initialize: async () => {
-      return initializeEnhancedAIAgent();
-    }
-  });
+  // This will be implemented in later phases as needed
 }
 
 /**
@@ -149,55 +103,106 @@ function registerAppComponents(server: Server): void {
  */
 function setupErrorHandler(app: Express): void {
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const statusCode = err.statusCode || 500;
-    const errorMessage = err.message || 'Internal Server Error';
+    const logger = container.get<Logger>(TYPES.Logger);
     
-    log(`Error: ${errorMessage}`, 'express');
-    
-    // Publish error event
-    eventBus.publish('app:error', {
-      statusCode,
-      message: errorMessage,
-      timestamp: new Date().toISOString()
+    logger.error(`Unhandled error: ${err.message}`, 'server', {
+      stack: err.stack
     });
     
-    // Send error response
-    res.status(statusCode).json({
-      error: {
-        message: errorMessage,
-        statusCode
-      }
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: err.message || 'An unexpected error occurred'
     });
   });
+}
+
+/**
+ * Set up WebSocket server
+ */
+function setupWebSocketServer(server: Server, eventBus: EventBus, logger: Logger): WebSocket.Server {
+  const wss = new WebSocket.Server({ server });
+  
+  wss.on('connection', (ws: WebSocket) => {
+    logger.debug('WebSocket client connected', 'websocket');
+    
+    ws.on('message', (message: WebSocket.Data) => {
+      try {
+        const data = JSON.parse(message.toString());
+        logger.debug(`Received message: ${JSON.stringify(data)}`, 'websocket');
+        
+        // Route the message to the appropriate handler
+        switch (data.type) {
+          case 'client-connected':
+            logger.debug('Received client connected message', 'websocket');
+            eventBus.publish('client:connected', { ws, data });
+            break;
+          default:
+            logger.warn(`Unknown message type: ${data.type}`, 'websocket');
+        }
+      } catch (error) {
+        logger.error(`Error processing WebSocket message: ${error}`, 'websocket');
+      }
+    });
+    
+    ws.on('close', () => {
+      logger.debug('WebSocket client disconnected', 'websocket');
+      eventBus.publish('client:disconnected', { ws });
+    });
+    
+    ws.on('error', (error) => {
+      logger.error(`WebSocket error: ${error}`, 'websocket');
+    });
+  });
+  
+  return wss;
 }
 
 /**
  * Start the AI agent
  */
 async function startAIAgent(): Promise<void> {
-  try {
-    log('Starting Enhanced AI Agent...', 'express');
-    await startEnhancedAIAgent();
-    log('Enhanced AI Agent started successfully', 'express');
-  } catch (error) {
-    log(`Error starting Enhanced AI Agent: ${error}`, 'express');
-  }
+  // This will be implemented in Phase 3
+  const logger = container.get<Logger>(TYPES.Logger);
+  logger.info('AI Agent will be initialized in Phase 3', 'agent');
 }
 
 /**
  * Handle graceful shutdown
  */
-process.on('SIGINT', handleShutdown);
-process.on('SIGTERM', handleShutdown);
-
-async function handleShutdown(): Promise<void> {
+async function handleShutdown(server: Server, database: Database): Promise<void> {
+  const logger = container.get<Logger>(TYPES.Logger);
+  
+  logger.info('Shutting down server...', 'server');
+  
+  // Close the HTTP server
+  server.close(() => {
+    logger.info('HTTP server closed', 'server');
+  });
+  
+  // Close database connection
   try {
-    log('Received shutdown signal', 'express');
-    await appOrchestrator.shutdown();
-    log('Application shut down gracefully', 'express');
-    process.exit(0);
+    await database.close();
+    logger.info('Database connection closed', 'server');
   } catch (error) {
-    log(`Error during shutdown: ${error}`, 'express');
-    process.exit(1);
+    logger.error(`Error closing database connection: ${error}`, 'server');
   }
+  
+  // Exit the process
+  process.exit(0);
 }
+
+// Set up graceful shutdown handlers
+process.on('SIGTERM', () => {
+  log('SIGTERM received, shutting down...', 'server');
+  // We don't have server and database instances in this scope yet
+  // They will be properly handled in the handleShutdown function later
+});
+
+process.on('SIGINT', () => {
+  log('SIGINT received, shutting down...', 'server');
+  // We don't have server and database instances in this scope yet
+  // They will be properly handled in the handleShutdown function later
+});
+
+// Start the application
+initializeApp();
