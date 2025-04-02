@@ -193,6 +193,44 @@ export class ProductController {
   }
 
   /**
+   * Get products dashboard data
+   */
+  async getProductsDashboard(req: Request, res: Response): Promise<void> {
+    try {
+      // Get total product count
+      const totalProducts = await productService.getTotalProductCount();
+      
+      // Get product breakdown by category
+      const productsByCategory = await productService.getProductsByCategory();
+      
+      // Get top trending products
+      const topTrending = await productService.getTopTrending(10);
+      
+      // Get recently added products
+      const recentlyAdded = await productService.getRecentProducts(10);
+      
+      // Get sales velocity distribution
+      const salesVelocityDistribution = await productService.getSalesVelocityDistribution();
+      
+      // Get market opportunity analysis
+      const marketOpportunities = await productService.getMarketOpportunities();
+      
+      // Return products dashboard data
+      res.json({
+        totalProducts,
+        productsByCategory,
+        topTrending,
+        recentlyAdded,
+        salesVelocityDistribution,
+        marketOpportunities
+      });
+    } catch (error) {
+      log(`Error in getProductsDashboard: ${error}`, 'product-controller');
+      res.status(500).json({ error: 'Failed to retrieve products dashboard data' });
+    }
+  }
+
+  /**
    * Get dashboard summary
    */
   async getDashboardSummary(req: Request, res: Response): Promise<void> {

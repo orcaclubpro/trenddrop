@@ -11,6 +11,40 @@ import { log } from '../vite.js';
 
 export class RegionController {
   /**
+   * Get regions dashboard data
+   */
+  async getRegionsDashboard(req: Request, res: Response): Promise<void> {
+    try {
+      // Get total regions count
+      const totalRegions = await regionService.getTotalCount();
+      
+      // Get top regions by product count
+      const topRegions = await regionService.getTopRegions(10);
+      
+      // Get continent distribution
+      const geoDistribution = await regionService.getContinentDistribution();
+      
+      // Get region growth rates (regions with increasing product trend scores)
+      const regionGrowthRates = await regionService.getRegionGrowthRates();
+      
+      // Get regions world map data
+      const worldMapData = await regionService.getWorldMapData();
+      
+      // Return regions dashboard data
+      res.json({
+        totalRegions,
+        topRegions,
+        geoDistribution,
+        regionGrowthRates,
+        worldMapData
+      });
+    } catch (error) {
+      log(`Error in getRegionsDashboard: ${error}`, 'region-controller');
+      res.status(500).json({ error: 'Failed to retrieve regions dashboard data' });
+    }
+  }
+  
+  /**
    * Get regions for a product
    */
   async getRegionsForProduct(req: Request, res: Response): Promise<void> {

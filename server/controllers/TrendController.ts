@@ -11,6 +11,38 @@ import { log } from '../vite.js';
 
 export class TrendController {
   /**
+   * Get trends dashboard data
+   */
+  async getTrendsDashboard(req: Request, res: Response): Promise<void> {
+    try {
+      // Get trend metrics for dashboard
+      const totalTrends = await trendService.getTotalTrendCount();
+      const averageTrendScore = await trendService.getAverageTrendScore();
+      
+      // Get rising categories (categories with increasing trend scores)
+      const risingCategories = await trendService.getRisingCategories();
+      
+      // Get top search terms
+      const topSearchTerms = await trendService.getTopSearchTerms();
+      
+      // Get trend timeline (for time-series chart)
+      const trendTimeline = await trendService.getTrendTimeline();
+      
+      // Return dashboard data
+      res.json({
+        totalTrends,
+        averageTrendScore,
+        risingCategories,
+        topSearchTerms,
+        trendTimeline
+      });
+    } catch (error) {
+      log(`Error in getTrendsDashboard: ${error}`, 'trend-controller');
+      res.status(500).json({ error: 'Failed to retrieve trends dashboard data' });
+    }
+  }
+  
+  /**
    * Get trends for a product
    */
   async getTrendsForProduct(req: Request, res: Response): Promise<void> {

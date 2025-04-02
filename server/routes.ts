@@ -37,8 +37,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Category routes
   app.get('/api/categories', controllers.productController.getCategories.bind(controllers.productController));
 
-  // Dashboard route
+  // Dashboard routes
   app.get('/api/dashboard', controllers.productController.getDashboardSummary.bind(controllers.productController));
+  app.get('/api/dashboard/trends', controllers.trendController.getTrendsDashboard.bind(controllers.trendController));
+  app.get('/api/dashboard/products', controllers.productController.getProductsDashboard.bind(controllers.productController));
+  app.get('/api/dashboard/regions', controllers.regionController.getRegionsDashboard.bind(controllers.regionController));
+  app.get('/api/dashboard/videos', controllers.videoController.getVideosDashboard.bind(controllers.videoController));
 
   // Trend routes
   app.get('/api/products/:productId/trends', controllers.trendController.getTrendsForProduct.bind(controllers.trendController));

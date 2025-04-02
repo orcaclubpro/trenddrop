@@ -128,29 +128,78 @@ export type ProductWithDetails = z.infer<typeof productWithDetails>;
 
 // Dashboard summary type
 export const dashboardSummarySchema = z.object({
+  // Basic metrics
   trendingProductsCount: z.number(),
   averageTrendScore: z.number(),
   topRegion: z.string(),
   topRegionPercentage: z.number(),
   viralVideosCount: z.number(),
   newVideosToday: z.number(),
-  recentProducts: z.array(z.any()).optional(), // Most recent products added
+  
+  // Products data
+  productCount: z.number(),
+  newProductCount: z.number(),
+  topProducts: z.array(z.any()),
+  recentProducts: z.array(z.any()),
+  
+  // Trend metrics
+  averagePrice: z.number(),
+  priceChange: z.number(),
+  trendScoreChange: z.number(),
+  
+  // Category analysis
   topCategories: z.array(z.object({
     name: z.string(),
     count: z.number(),
     percentage: z.number()
+  })),
+  
+  // Geographic data
+  regionCount: z.number(),
+  countryCount: z.number(),
+  topRegions: z.array(z.object({
+    regionName: z.string(),
+    count: z.number(),
+    percentage: z.number()
+  })),
+  
+  // Video metrics
+  topVideos: z.array(z.object({
+    id: z.number(),
+    title: z.string(),
+    platform: z.string(),
+    views: z.number(),
+    productId: z.number(),
+    productName: z.string().optional(),
+    thumbnailUrl: z.string().optional(),
+  })),
+  platformDistribution: z.array(z.object({
+    platform: z.string(),
+    count: z.number(),
+    percentage: z.number()
+  })),
+  
+  // Time series data
+  trendTimeline: z.array(z.object({
+    date: z.string(),
+    avgTrendScore: z.number(),
+    newProducts: z.number()
   })).optional(),
-  productCount: z.number().optional(),
-  newProductCount: z.number().optional(),
-  regionCount: z.number().optional(),
-  countryCount: z.number().optional(),
-  averagePrice: z.number().optional(),
-  priceChange: z.number().optional(),
-  trendScoreChange: z.number().optional(),
-  topProducts: z.array(z.any()).optional(),
-  topRegions: z.array(z.any()).optional(),
-  topVideos: z.array(z.any()).optional(),
-  platformDistribution: z.array(z.any()).optional()
+  
+  // Performance indicators
+  salesVelocityDistribution: z.array(z.object({
+    range: z.string(),
+    count: z.number(),
+    percentage: z.number()
+  })).optional(),
+  
+  // Market analysis
+  marketOpportunities: z.array(z.object({
+    category: z.string(),
+    growthRate: z.number(),
+    competitionLevel: z.string(),
+    potentialScore: z.number()
+  })).optional()
 });
 
 export type DashboardSummary = z.infer<typeof dashboardSummarySchema>;

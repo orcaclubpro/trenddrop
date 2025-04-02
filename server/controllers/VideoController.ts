@@ -11,6 +11,44 @@ import { log } from '../vite.js';
 
 export class VideoController {
   /**
+   * Get videos dashboard data
+   */
+  async getVideosDashboard(req: Request, res: Response): Promise<void> {
+    try {
+      // Get total video count
+      const totalVideos = await videoService.getTotalVideoCount();
+      
+      // Get video count by platform
+      const platformDistribution = await videoService.getPlatformDistribution();
+      
+      // Get top performing videos
+      const topVideos = await videoService.getTopVideos(10);
+      
+      // Get recent videos
+      const recentVideos = await videoService.getRecentVideos(10);
+      
+      // Get view count trends over time
+      const viewsOverTime = await videoService.getViewsOverTime();
+      
+      // Get engagement metrics
+      const engagementMetrics = await videoService.getEngagementMetrics();
+      
+      // Return videos dashboard data
+      res.json({
+        totalVideos,
+        platformDistribution,
+        topVideos,
+        recentVideos,
+        viewsOverTime,
+        engagementMetrics
+      });
+    } catch (error) {
+      log(`Error in getVideosDashboard: ${error}`, 'video-controller');
+      res.status(500).json({ error: 'Failed to retrieve videos dashboard data' });
+    }
+  }
+  
+  /**
    * Get videos for a product
    */
   async getVideosForProduct(req: Request, res: Response): Promise<void> {
