@@ -280,6 +280,42 @@ export class VideoRepository extends BaseRepository<schema.Video, number> {
       return `${diffYears} years ago`;
     }
   }
+
+  /**
+   * Get count of viral videos (views > 50k)
+   */
+  async getViralVideosCount(): Promise<number> {
+    try {
+      const db = databaseService.getDb();
+      const result = await db
+        .select({ count: sql`count(*)` })
+        .from(schema.videos)
+        .where(sql`views >= 50000`);
+      
+      return Number(result[0].count);
+    } catch (error) {
+      log(`Error getting viral videos count: ${error}`, 'video-repo');
+      throw error;
+    }
+  }
+
+  /**
+   * Get count of new videos after a given date
+   */
+  async getNewVideosCount(afterDate: Date): Promise<number> {
+    try {
+      const db = databaseService.getDb();
+      const result = await db
+        .select({ count: sql`count(*)` })
+        .from(schema.videos)
+        .where(sql`upload_date >= ${afterDate.toISOString()}`);
+      
+      return Number(result[0].count);
+    } catch (error) {
+      log(`Error getting new videos count: ${error}`, 'video-repo');
+      throw error;
+    }
+  }
 }
 
 // Export repository instance

@@ -236,6 +236,40 @@ export class RegionRepository extends BaseRepository<schema.Region, number> {
       throw error;
     }
   }
+
+  /**
+   * Get total count of regions
+   */
+  async getTotalCount(): Promise<number> {
+    try {
+      const db = databaseService.getDb();
+      const result = await db
+        .select({ count: sql`count(*)` })
+        .from(schema.regions);
+      
+      return Number(result[0].count);
+    } catch (error) {
+      log(`Error getting total region count: ${error}`, 'region-repo');
+      throw error;
+    }
+  }
+
+  /**
+   * Get unique country count
+   */
+  async getUniqueCountryCount(): Promise<number> {
+    try {
+      const db = databaseService.getDb();
+      const result = await db
+        .selectDistinct({ country: schema.regions.country })
+        .from(schema.regions);
+      
+      return result.length;
+    } catch (error) {
+      log(`Error getting unique country count: ${error}`, 'region-repo');
+      throw error;
+    }
+  }
 }
 
 // Export repository instance

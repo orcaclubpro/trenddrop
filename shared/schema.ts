@@ -111,6 +111,8 @@ export const productFilterSchema = z.object({
   sortBy: z.string().optional(),
   sortDirection: z.enum(['asc', 'desc']).optional(),
   search: z.string().optional(),
+  createdAfter: z.date().optional(),
+  createdBefore: z.date().optional(),
 });
 
 export type ProductFilter = z.infer<typeof productFilterSchema>;
@@ -132,6 +134,23 @@ export const dashboardSummarySchema = z.object({
   topRegionPercentage: z.number(),
   viralVideosCount: z.number(),
   newVideosToday: z.number(),
+  recentProducts: z.array(z.any()).optional(), // Most recent products added
+  topCategories: z.array(z.object({
+    name: z.string(),
+    count: z.number(),
+    percentage: z.number()
+  })).optional(),
+  productCount: z.number().optional(),
+  newProductCount: z.number().optional(),
+  regionCount: z.number().optional(),
+  countryCount: z.number().optional(),
+  averagePrice: z.number().optional(),
+  priceChange: z.number().optional(),
+  trendScoreChange: z.number().optional(),
+  topProducts: z.array(z.any()).optional(),
+  topRegions: z.array(z.any()).optional(),
+  topVideos: z.array(z.any()).optional(),
+  platformDistribution: z.array(z.any()).optional()
 });
 
 export type DashboardSummary = z.infer<typeof dashboardSummarySchema>;

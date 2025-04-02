@@ -29,7 +29,7 @@ export class ProductRepository extends BaseRepository<schema.Product, number> {
   /**
    * Find all products with filtering and pagination
    */
-  async findAll(filter: schema.ProductFilter = {}): Promise<{ data: schema.Product[], total: number }> {
+  async findAll(filter: schema.ProductFilter = { page: 1, limit: 10 }): Promise<{ data: schema.Product[], total: number }> {
     try {
       const db = databaseService.getDb();
       const {
@@ -39,7 +39,9 @@ export class ProductRepository extends BaseRepository<schema.Product, number> {
         minTrendScore,
         sortBy = 'trendScore',
         sortDirection = 'desc',
-        search
+        search,
+        createdAfter,
+        createdBefore
       } = filter;
 
       // Build the where clause
@@ -64,6 +66,14 @@ export class ProductRepository extends BaseRepository<schema.Product, number> {
         );
       }
 
+      if (createdAfter) {
+        whereConditions.push(gte(schema.products.createdAt, createdAfter));
+      }
+
+      if (createdBefore) {
+        whereConditions.push(sql`${schema.products.createdAt} <= ${createdBefore.toISOString()}`);
+      }
+
       // Calculate pagination
       const offset = (page - 1) * pageSize;
 
@@ -73,6 +83,7 @@ export class ProductRepository extends BaseRepository<schema.Product, number> {
         : sortBy === 'engagementRate' ? schema.products.engagementRate
         : sortBy === 'salesVelocity' ? schema.products.salesVelocity
         : sortBy === 'searchVolume' ? schema.products.searchVolume
+        : sortBy === 'createdAt' ? schema.products.createdAt
         : schema.products.trendScore;
 
       const sortOrder = sortDirection === 'asc' ? asc(sortColumn) : desc(sortColumn);
@@ -224,6 +235,45 @@ export class ProductRepository extends BaseRepository<schema.Product, number> {
         .limit(limit);
     } catch (error) {
       log(`Error getting top trending products: ${error}`, 'product-repo');
+      throw error;
+    }
+  }
+
+  /**
+   * Get recent products
+   */
+  async getRecentProducts(limit: number = 10): Promise<schema.Product[]> {
+    try {
+      const db = databaseService.getDb();
+      return await db
+        .select()
+        .from(schema.products)
+        .orderBy(desc(schema.products.createdAt))
+        .limit(limit);
+    } catch (error) {
+      log(`Error getting recent products: ${error}`, 'product-repo');
+      throw error;
+    }
+  }
+
+  /**
+   * Get category breakdown
+   */
+  async getCategoryBreakdown(): Promise<{ category: string; count: number }[]> {
+    try {
+      const db = databaseService.getDb();
+      const result = await db
+        .select({
+          category: schema.products.category,
+          count: sql`count(*)`.mapWith(Number)
+        })
+        .from(schema.products)
+        .groupBy(schema.products.category)
+        .orderBy(desc(sql`count(*)`));
+      
+      return result;
+    } catch (error) {
+      log(`Error getting category breakdown: ${error}`, 'product-repo');
       throw error;
     }
   }

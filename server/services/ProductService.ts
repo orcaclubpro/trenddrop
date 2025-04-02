@@ -18,7 +18,7 @@ export class ProductService {
   /**
    * Get products with optional filtering
    */
-  async getProducts(filter: schema.ProductFilter = {}): Promise<{ products: schema.Product[], total: number }> {
+  async getProducts(filter: schema.ProductFilter = { page: 1, limit: 10 }): Promise<{ products: schema.Product[], total: number }> {
     try {
       const { data, total } = await productRepository.findAll(filter);
       return { products: data, total };
@@ -240,6 +240,18 @@ export class ProductService {
   }
 
   /**
+   * Get recent products
+   */
+  async getRecentProducts(limit: number = 10): Promise<schema.Product[]> {
+    try {
+      return await productRepository.getRecentProducts(limit);
+    } catch (error) {
+      log(`Error getting recent products: ${error}`, 'product-service');
+      throw error;
+    }
+  }
+
+  /**
    * Get dashboard summary data
    */
   async getDashboardSummary(): Promise<schema.DashboardSummary> {
@@ -247,28 +259,85 @@ export class ProductService {
       // Get top trending products
       const topProducts = await this.getTopTrending(5);
       
+      // Get recent products
+      const recentProducts = await this.getRecentProducts(10);
+      
       // Get product count
-      const { total: productCount } = await productRepository.findAll();
+      const { total: productCount } = await productRepository.findAll({ page: 1, limit: 10 });
+      
+      // Get products added in the last 7 days
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+      const { total: newProductCount } = await productRepository.findAll({
+        page: 1,
+        limit: 10,
+        createdAfter: oneWeekAgo
+      });
       
       // Get top regions
       const topRegions = await regionRepository.getTopRegions(5);
+      
+      // Get region count and country count
+      const regionCount = await regionRepository.getTotalCount();
+      const countryCount = await regionRepository.getUniqueCountryCount();
       
       // Get top videos
       const topVideos = await videoRepository.getTopVideos(5);
       
       // Get average trend score
-      const allProducts = await productRepository.findAll();
-      const avgTrendScore = allProducts.data.reduce((sum, product) => sum + product.trendScore, 0) / allProducts.data.length;
+      const allProducts = await productRepository.findAll({ page: 1, limit: 1000 });
+      const avgTrendScore = allProducts.data.reduce((sum, product) => sum + product.trendScore, 0) / allProducts.data.length || 0;
+      
+      // Calculate trend score change (mock data, would be from historical data)
+      const trendScoreChange = 0.8; // Example value, would come from historical comparison
+      
+      // Get average price
+      const averagePrice = allProducts.data.reduce((sum, product) => 
+        sum + ((product.priceRangeLow + product.priceRangeHigh) / 2), 0) / allProducts.data.length || 0;
+      
+      // Calculate price change (mock data, would be from historical data)
+      const priceChange = 1.2; // Example value, would come from historical comparison
       
       // Get platform distribution
       const platformCounts = await videoRepository.getPlatformCounts();
       
+      // Get top categories
+      const categories = await productRepository.getCategoryBreakdown();
+      const topCategories = categories.map(cat => ({
+        name: cat.category,
+        count: cat.count,
+        percentage: Math.round((cat.count / productCount) * 100)
+      }));
+      
+      // Get video counts
+      const viralVideosCount = await videoRepository.getViralVideosCount();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const newVideosToday = await videoRepository.getNewVideosCount(today);
+      
+      // Get top region info
+      const topRegion = topRegions.length > 0 ? topRegions[0].regionName : "";
+      const topRegionPercentage = topRegions.length > 0 ? Math.round(topRegions[0].count / productCount * 100) : 0;
+      
       return {
         productCount,
-        avgTrendScore: Math.round(avgTrendScore),
+        newProductCount,
+        trendingProductsCount: productCount,
+        averageTrendScore: Math.round(avgTrendScore * 10) / 10,
+        averagePrice,
+        priceChange,
+        trendScoreChange,
+        regionCount,
+        countryCount,
+        topRegion,
+        topRegionPercentage,
+        viralVideosCount,
+        newVideosToday,
         topProducts,
+        recentProducts,
         topRegions,
         topVideos,
+        topCategories,
         platformDistribution: platformCounts
       };
     } catch (error) {

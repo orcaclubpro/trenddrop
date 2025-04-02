@@ -159,11 +159,13 @@ export default function Dashboard() {
               {dashboardData?.averageTrendScore?.toFixed(1) || '0'}/100
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              {dashboardData?.trendScoreChange > 0 
-                ? `↑ ${dashboardData.trendScoreChange.toFixed(1)} points` 
-                : dashboardData?.trendScoreChange < 0 
-                  ? `↓ ${Math.abs(dashboardData.trendScoreChange).toFixed(1)} points` 
-                  : 'No change in trend score'}
+              {dashboardData?.trendScoreChange !== undefined 
+                ? (dashboardData.trendScoreChange > 0 
+                  ? `↑ ${dashboardData.trendScoreChange.toFixed(1)} points` 
+                  : dashboardData.trendScoreChange < 0 
+                    ? `↓ ${Math.abs(dashboardData.trendScoreChange).toFixed(1)} points` 
+                    : 'No change in trend score')
+                : 'No change in trend score'}
             </p>
           </CardContent>
         </Card>
@@ -197,11 +199,13 @@ export default function Dashboard() {
               {formatCurrency(dashboardData?.averagePrice || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              {dashboardData?.priceChange > 0 
-                ? `↑ ${dashboardData.priceChange.toFixed(1)}% increase` 
-                : dashboardData?.priceChange < 0 
-                  ? `↓ ${Math.abs(dashboardData.priceChange).toFixed(1)}% decrease` 
-                  : 'No price change'}
+              {dashboardData?.priceChange !== undefined 
+                ? (dashboardData.priceChange > 0 
+                  ? `↑ ${dashboardData.priceChange.toFixed(1)}% increase` 
+                  : dashboardData.priceChange < 0 
+                    ? `↓ ${Math.abs(dashboardData.priceChange).toFixed(1)}% decrease` 
+                    : 'No price change')
+                : 'No price change'}
             </p>
           </CardContent>
         </Card>
@@ -258,6 +262,58 @@ export default function Dashboard() {
               ) : (
                 <div className="flex items-center justify-center h-[200px] text-muted-foreground">
                   No product data available
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Recent Products Section */}
+      <div className="grid grid-cols-1 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex justify-between items-center">
+              Recently Added Products
+              <Package className="h-4 w-4 text-muted-foreground" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+              {dashboardData?.recentProducts?.length ? (
+                dashboardData.recentProducts.map((product) => (
+                  <div 
+                    key={product.id} 
+                    className="border rounded-lg p-3 hover:shadow-md transition-shadow cursor-pointer"
+                    onClick={() => { window.location.href = `/product/${product.id}`; }}
+                  >
+                    <div className="h-32 bg-gray-100 rounded mb-2 flex items-center justify-center overflow-hidden">
+                      {product.imageUrl ? (
+                        <img 
+                          src={product.imageUrl} 
+                          alt={product.name} 
+                          className="w-full h-full object-cover" 
+                        />
+                      ) : (
+                        <Package className="h-10 w-10 text-muted-foreground" />
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <h3 className="font-medium text-sm truncate" title={product.name}>
+                        {product.name}
+                      </h3>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-muted-foreground">{product.category}</span>
+                        <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                          {product.trendScore}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="col-span-5 flex items-center justify-center h-32 text-muted-foreground">
+                  No recent products available
                 </div>
               )}
             </div>
