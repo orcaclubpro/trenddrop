@@ -1,34 +1,98 @@
 /**
- * Service Exports
+ * Service Index
  * 
- * This file exports all service classes for easy access.
+ * This file exports all services and provides helper functions 
+ * for initializing services in the correct order.
  */
 
-// Export common services
-export { webSocketService } from './common/WebSocketService.js';
-export { default as databaseService } from './database-service.js';
+import { serviceRegistry } from '../core/ServiceRegistry.js';
+import { eventBus } from '../core/EventBus.js';
+import databaseService from './database-service.js';
+import agentService, { 
+  startAgentService, 
+  stopAgentService, 
+  triggerScraping, 
+  getAgentStatus 
+} from './agent-service.js';
+import { logService } from './common/LogService.js';
+import { TrendService } from './trend-service.js';
+import { ProductService } from './ProductService.js';
+import { RegionService } from './RegionService.js';
+import { VideoService } from './VideoService.js'; 
+import { DbStorage } from '../storage.js';
 
-// Export domain services
-export { productService } from './ProductService.js';
-export { trendService } from './TrendService.js';
-export { regionService } from './RegionService.js';
-export { videoService } from './VideoService.js';
-export { agentService } from './AgentService.js';
+// Create storage instance
+const dbStorage = new DbStorage();
 
-// Export service classes
-export { ProductService } from './ProductService.js';
-export { TrendService } from './TrendService.js';
-export { RegionService } from './RegionService.js';
-export { VideoService } from './VideoService.js';
-export { AgentService } from './AgentService.js';
+// Create service instances
+export const productService = new ProductService();
+export const trendService = new TrendService(dbStorage);
+export const regionService = new RegionService();
+export const videoService = new VideoService();
 
-// Export agent control functions
+// Export all services
 export {
+  databaseService,
+  agentService,
+  logService,
   startAgentService,
   stopAgentService,
   triggerScraping,
-  getAgentStatus
-} from './AgentService.js';
+  getAgentStatus,
+  // Export classes for dependency injection
+  ProductService,
+  TrendService,
+  RegionService,
+  VideoService
+};
 
-// Export log service
-export { logService } from './common/LogService.js';
+/**
+ * Initialize all application services in the correct order
+ * 
+ * @returns Promise that resolves when all services are initialized
+ */
+export async function initializeServices(): Promise<boolean> {
+  try {
+    // Register services with the registry
+    serviceRegistry.register('eventBus', eventBus);
+    serviceRegistry.register('databaseService', databaseService);
+    serviceRegistry.register('agentService', agentService);
+    serviceRegistry.register('logService', logService);
+    serviceRegistry.register('productService', productService);
+    serviceRegistry.register('trendService', trendService); 
+    serviceRegistry.register('regionService', regionService);
+    serviceRegistry.register('videoService', videoService);
+    serviceRegistry.register('dbStorage', dbStorage);
+    
+    // Initialize the database first
+    const dbInitialized = await databaseService.initialize();
+    if (!dbInitialized) {
+      console.error('Failed to initialize database service');
+      return false;
+    }
+    
+    // Initialize logging service
+    logService.registerLogInterceptor();
+    
+    // Everything was initialized successfully
+    return true;
+  } catch (error) {
+    console.error(`Error initializing services: ${error}`);
+    return false;
+  }
+}
+
+/**
+ * Gracefully shut down all services
+ */
+export async function shutdownServices(): Promise<void> {
+  try {
+    // Stop the agent service
+    stopAgentService();
+    
+    // Close database connections
+    await databaseService.close();
+  } catch (error) {
+    console.error(`Error shutting down services: ${error}`);
+  }
+}

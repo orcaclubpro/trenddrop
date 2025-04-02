@@ -5,7 +5,7 @@
  */
 
 import { Request, Response } from 'express';
-import { startAgentService, stopAgentService, triggerScraping, getAgentStatus } from '../services/index.js';
+import { startAgentService, stopAgentService, triggerScraping, getAgentStatus, agentService } from '../services/index.js';
 import { log } from '../vite.js';
 
 export class AgentController {
@@ -58,6 +58,24 @@ export class AgentController {
     } catch (error) {
       log(`Error in triggerScraping: ${error}`, 'agent-controller');
       res.status(500).json({ error: 'Failed to trigger scraping task' });
+    }
+  }
+
+  /**
+   * Reset the agent counter (for testing purposes)
+   */
+  async resetCounter(req: Request, res: Response): Promise<void> {
+    try {
+      if (agentService && typeof agentService.resetCounter === 'function') {
+        agentService.resetCounter();
+        res.json({ success: true, message: 'Agent counter reset successfully' });
+      } else {
+        log('Agent service or resetCounter method not available', 'agent-controller');
+        throw new Error('Agent service not available');
+      }
+    } catch (error) {
+      log(`Error in resetCounter: ${error}`, 'agent-controller');
+      res.status(500).json({ error: 'Failed to reset agent counter' });
     }
   }
 }

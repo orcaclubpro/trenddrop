@@ -1,20 +1,18 @@
 /**
- * ServiceRegistry - Dependency Injection Container
+ * Service Registry
  * 
- * This class implements a simple service registry pattern for managing
- * service lifecycle and dependencies across the application.
+ * A lightweight service registry for managing application services.
+ * This helps reduce tight coupling between components and simplifies testing.
  */
 
-export class ServiceRegistry {
+import { log } from '../vite.js';
+
+class ServiceRegistry {
   private static instance: ServiceRegistry;
   private services: Map<string, any> = new Map();
-  private registrationOrder: string[] = [];
 
   private constructor() {}
 
-  /**
-   * Get the singleton instance
-   */
   public static getInstance(): ServiceRegistry {
     if (!ServiceRegistry.instance) {
       ServiceRegistry.instance = new ServiceRegistry();
@@ -26,9 +24,12 @@ export class ServiceRegistry {
    * Register a service with the registry
    */
   public register<T>(name: string, service: T): void {
+    if (this.services.has(name)) {
+      log(`Service '${name}' is being replaced`, 'service-registry');
+    }
+    
     this.services.set(name, service);
-    this.registrationOrder.push(name);
-    console.log(`[ServiceRegistry] Registered service: ${name}`);
+    log(`Service '${name}' registered`, 'service-registry');
   }
 
   /**
@@ -36,36 +37,33 @@ export class ServiceRegistry {
    */
   public get<T>(name: string): T {
     if (!this.services.has(name)) {
-      throw new Error(`[ServiceRegistry] Service '${name}' not registered`);
+      throw new Error(`Service '${name}' not found in registry`);
     }
+    
     return this.services.get(name) as T;
   }
 
   /**
-   * Check if a service is registered
+   * Check if a service exists in the registry
    */
   public has(name: string): boolean {
     return this.services.has(name);
   }
 
   /**
-   * List all registered services
+   * Remove a service from the registry
    */
-  public listServices(): string[] {
-    return [...this.registrationOrder];
+  public remove(name: string): boolean {
+    return this.services.delete(name);
   }
 
   /**
-   * Clear all registered services (mainly used for testing)
+   * Get all registered service names
    */
-  public clear(): void {
-    this.services.clear();
-    this.registrationOrder = [];
+  public getServiceNames(): string[] {
+    return Array.from(this.services.keys());
   }
 }
 
-// Export singleton instance
+// Export a singleton instance
 export const serviceRegistry = ServiceRegistry.getInstance();
-
-// Export default for convenience
-export default serviceRegistry;

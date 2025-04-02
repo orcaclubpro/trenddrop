@@ -5,11 +5,10 @@
  */
 
 import { Express, Request, Response } from 'express';
-import { Server } from 'http';
 import * as controllers from './controllers/index.js';
 import { log } from './vite.js';
 
-export async function registerRoutes(app: Express): Promise<Server> {
+export async function registerRoutes(app: Express): Promise<Express> {
   // Create an API router
   log('Registering API routes...', 'routes');
 
@@ -67,6 +66,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/agent/start', controllers.agentController.startAgent.bind(controllers.agentController));
   app.post('/api/agent/stop', controllers.agentController.stopAgent.bind(controllers.agentController));
   app.post('/api/agent/trigger-scraping', controllers.agentController.triggerScraping.bind(controllers.agentController));
+  app.post('/api/agent/reset-counter', controllers.agentController.resetCounter.bind(controllers.agentController));
   
   // Log routes
   app.get('/api/logs', controllers.logController.getLogs.bind(controllers.logController));
