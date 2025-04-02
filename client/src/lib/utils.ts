@@ -172,11 +172,11 @@ export function formatRelativeTime(date: Date | string): string {
  * Get a color based on trend score
  */
 export function getTrendScoreColor(score: number): string {
-  if (score >= 80) return 'text-green-500';
-  if (score >= 60) return 'text-emerald-500';
-  if (score >= 40) return 'text-amber-500';
-  if (score >= 20) return 'text-orange-500';
-  return 'text-red-500';
+  if (score >= 80) return 'text-emerald-600 border-emerald-600';
+  if (score >= 60) return 'text-teal-600 border-teal-600';
+  if (score >= 40) return 'text-amber-600 border-amber-600';
+  if (score >= 20) return 'text-orange-600 border-orange-600';
+  return 'text-rose-600 border-rose-600';
 }
 
 /**

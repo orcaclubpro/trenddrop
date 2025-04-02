@@ -22,7 +22,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         '/api/products',
         '/api/categories',
         '/api/dashboard',
-        '/api/agent'
+        '/api/agent',
+        '/api/logs'
       ]
     });
   });
@@ -66,6 +67,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/agent/start', controllers.agentController.startAgent.bind(controllers.agentController));
   app.post('/api/agent/stop', controllers.agentController.stopAgent.bind(controllers.agentController));
   app.post('/api/agent/trigger-scraping', controllers.agentController.triggerScraping.bind(controllers.agentController));
+  
+  // Log routes
+  app.get('/api/logs', controllers.logController.getLogs.bind(controllers.logController));
+  app.delete('/api/logs', controllers.logController.clearLogs.bind(controllers.logController));
 
   log('API routes registered successfully', 'routes');
 

@@ -3,59 +3,81 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'wouter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { 
-  Search,
-  Filter,
-  ArrowUpDown,
-  ChevronLeft,
-  ChevronRight,
-  TrendingUp,
   Package,
+  TrendingUp,
   Video,
   MapPin
 } from 'lucide-react';
-import { debounce, formatCurrency, getTrendScoreColor } from '@/lib/utils';
+import { formatCurrency, getTrendScoreColor } from '@/lib/utils';
 import { LoadingScreen } from '@/components/ui/loading-screen';
 import { useToast } from '@/hooks/use-toast';
+import { ProductSearch, ProductFilters } from '@/components/products/ProductSearch';
+import { ProductService } from '@/services';
+import { API } from '@/lib/constants';
+
+// Define Product interface
+interface Product {
+  id: number;
+  name: string;
+  category: string;
+  subcategory: string | null;
+  description: string | null;
+  priceRangeLow: number;
+  priceRangeHigh: number;
+  trendScore: number;
+  engagementRate: number;
+  salesVelocity: number;
+  searchVolume: number;
+  geographicSpread: number;
+  aliexpressUrl: string | null;
+  cjdropshippingUrl: string | null;
+  imageUrl: string | null;
+  sourcePlatform: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+  regionCount?: number;
+  videoCount?: number;
+}
 
 export default function Categories() {
   const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [isLoading, setIsLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [sortBy, setSortBy] = useState('trendScore');
-  const [sortOrder, setSortOrder] = useState('desc');
+  const [filters, setFilters] = useState<ProductFilters>({
+    search: '',
+    category: 'all',
+    priceRange: [0, 1000],
+    trendScore: [0, 100],
+    engagementRate: [0, 100],
+    salesVelocity: [0, 100],
+    searchVolume: [0, 100],
+    geographicSpread: [0, 100],
+    sortBy: 'trendScore',
+    sortDirection: 'desc'
+  });
 
   // For pagination
   const itemsPerPage = 12;
 
-  // Simulate categories list
-  const categories = [
-    { id: 'all', name: 'All Categories' },
-    { id: 'electronics', name: 'Electronics' },
-    { id: 'fashion', name: 'Fashion' },
-    { id: 'home', name: 'Home Goods' },
-    { id: 'beauty', name: 'Beauty' },
-    { id: 'sports', name: 'Sports & Outdoors' },
-    { id: 'toys', name: 'Toys & Games' }
-  ];
-
   const { data: productsData, isLoading: isProductsLoading, error } = useQuery({
-    queryKey: ['/api/products', { 
-      search: searchQuery, 
-      category: categoryFilter !== 'all' ? categoryFilter : undefined,
+    queryKey: [API.PRODUCTS, { 
+      ...filters,
       page: currentPage,
-      limit: itemsPerPage,
-      sortBy,
-      sortOrder
+      limit: itemsPerPage
     }],
-    keepPreviousData: true
+    queryFn: () => ProductService.getProducts({ 
+      ...filters, 
+      page: currentPage, 
+      limit: itemsPerPage 
+    }),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: false
   });
 
   useEffect(() => {
     if (error) {
+      console.error("Products fetch error:", error);
       toast({
         title: 'Error',
         description: 'Failed to load products. Please try again.',
@@ -64,91 +86,33 @@ export default function Categories() {
     }
   }, [error, toast]);
 
-  useEffect(() => {
-    setIsLoading(isProductsLoading);
-  }, [isProductsLoading]);
-
-  // Handle search input changes
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(e.target.value);
-    setCurrentPage(1); // Reset to first page on new search
+  const handleSearch = (newFilters: ProductFilters) => {
+    setFilters(newFilters);
+    setCurrentPage(1); // Reset to first page when filters change
   };
 
-  // Handle category filter changes
-  const handleCategoryChange = (categoryId: string) => {
-    setCategoryFilter(categoryId);
-    setCurrentPage(1); // Reset to first page on category change
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
   };
 
-  // Handle sorting changes
-  const handleSortChange = (field: string) => {
-    if (sortBy === field) {
-      // Toggle sort order if clicking the same field
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      // Set new sort field with default desc order
-      setSortBy(field);
-      setSortOrder('desc');
-    }
-    setCurrentPage(1); // Reset to first page on sort change
-  };
-
-  if (isLoading) {
+  if (isProductsLoading) {
     return <LoadingScreen />;
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Product Categories</h2>
-        <p className="text-muted-foreground">
-          Browse and filter trending products by category
-        </p>
+    <div className="container mx-auto py-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold">Products</h1>
       </div>
 
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative w-full max-w-md">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder="Search products..."
-            className="w-full pl-8 bg-background"
-            value={searchQuery}
-            onChange={handleSearchChange}
-          />
-        </div>
-        
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm">
-            <Filter className="mr-2 h-4 w-4" />
-            Filters
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => handleSortChange('trendScore')}>
-            <ArrowUpDown className="mr-2 h-4 w-4" />
-            {sortBy === 'trendScore' ? (sortOrder === 'desc' ? 'Highest Trend' : 'Lowest Trend') : 'Sort by Trend'}
-          </Button>
-        </div>
-      </div>
-
-      <div className="flex overflow-x-auto py-2 scrollbar-hide">
-        <div className="flex space-x-2">
-          {categories.map(category => (
-            <Button
-              key={category.id}
-              variant={categoryFilter === category.id ? "default" : "outline"}
-              size="sm"
-              onClick={() => handleCategoryChange(category.id)}
-              className="whitespace-nowrap"
-            >
-              {category.name}
-            </Button>
-          ))}
-        </div>
-      </div>
+      <ProductSearch 
+        onSearch={handleSearch}
+        isLoading={isProductsLoading}
+      />
 
       {productsData?.products && productsData.products.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {productsData.products.map(product => (
+          {productsData.products.map((product: any) => (
             <Link key={product.id} href={`/products/${product.id}`}>
               <Card className="cursor-pointer hover:shadow-md transition-shadow overflow-hidden">
                 <div className="h-40 bg-accent/30 relative">
@@ -166,7 +130,7 @@ export default function Categories() {
                 </CardHeader>
                 <CardContent className="px-4 pb-4 pt-2">
                   <div className="flex justify-between items-center text-sm">
-                    <div className="font-medium">{formatCurrency(product.price || 0)}</div>
+                    <div className="font-medium">{formatCurrency(product.priceRangeLow)}</div>
                     <div className="flex items-center space-x-4 text-muted-foreground">
                       <div className="flex items-center">
                         <MapPin className="h-3.5 w-3.5 mr-1" />
@@ -178,7 +142,7 @@ export default function Categories() {
                       </div>
                       <div className="flex items-center">
                         <TrendingUp className="h-3.5 w-3.5 mr-1" />
-                        <span>{product.engagementScore || 0}%</span>
+                        <span>{product.engagementRate || 0}%</span>
                       </div>
                     </div>
                   </div>
@@ -192,18 +156,26 @@ export default function Categories() {
           <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
           <h3 className="text-lg font-medium mb-2">No Products Found</h3>
           <p className="text-muted-foreground">
-            {searchQuery 
-              ? `No products matching "${searchQuery}" in ${categoryFilter === 'all' ? 'all categories' : categoryFilter}`
-              : `No products found in ${categoryFilter === 'all' ? 'all categories' : categoryFilter}`
+            {filters.search 
+              ? `No products matching "${filters.search}" in ${filters.category === 'all' ? 'all categories' : filters.category}`
+              : `No products found in ${filters.category === 'all' ? 'all categories' : filters.category}`
             }
           </p>
           <Button 
             variant="outline" 
             className="mt-4"
-            onClick={() => {
-              setSearchQuery('');
-              setCategoryFilter('all');
-            }}
+            onClick={() => handleSearch({
+              search: '',
+              category: 'all',
+              priceRange: [0, 1000],
+              trendScore: [0, 100],
+              engagementRate: [0, 100],
+              salesVelocity: [0, 100],
+              searchVolume: [0, 100],
+              geographicSpread: [0, 100],
+              sortBy: 'trendScore',
+              sortDirection: 'desc'
+            })}
           >
             Clear Filters
           </Button>
@@ -211,57 +183,24 @@ export default function Categories() {
       )}
 
       {/* Pagination */}
-      {productsData?.totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-muted-foreground">
-            Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to{' '}
-            <span className="font-medium">
-              {Math.min(currentPage * itemsPerPage, productsData.total)}
-            </span>{' '}
-            of <span className="font-medium">{productsData.total}</span> products
-          </div>
-          <div className="flex space-x-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            {Array.from({ length: Math.min(5, productsData.totalPages) }, (_, i) => {
-              // Show pages around the current page
-              let pageNum = currentPage;
-              if (currentPage > 2) {
-                pageNum = i + currentPage - 2;
-              } else {
-                pageNum = i + 1;
-              }
-              
-              // Don't show page numbers beyond total pages
-              if (pageNum <= productsData.totalPages) {
-                return (
-                  <Button
-                    key={pageNum}
-                    variant={currentPage === pageNum ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setCurrentPage(pageNum)}
-                  >
-                    {pageNum}
-                  </Button>
-                );
-              }
-              return null;
-            })}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(p => Math.min(productsData.totalPages, p + 1))}
-              disabled={currentPage === productsData.totalPages}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
+      {productsData?.total && productsData.total > itemsPerPage && (
+        <div className="flex justify-center gap-2 mt-6">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+          >
+            Previous
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage * itemsPerPage >= productsData.total}
+          >
+            Next
+          </Button>
         </div>
       )}
     </div>

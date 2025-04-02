@@ -1,35 +1,149 @@
 import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, BarChart, TrendingUp, MapPin, Video } from 'lucide-react';
+import { ArrowLeft, BarChart, TrendingUp, MapPin, Video, Download, Globe } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { formatDate, formatCurrency, getTrendScoreColor } from '@/lib/utils';
 import { LoadingScreen } from '@/components/ui/loading-screen';
 import { useToast } from '@/hooks/use-toast';
+import { ProductService, TrendService, RegionService, VideoService } from '@/services';
+import { API, WS_MESSAGE_TYPES } from '@/lib/constants';
+import { useWebSocket } from '@/hooks/use-websocket';
 
 interface ProductDetailProps {
   id: number;
 }
 
+interface Region {
+  id: number;
+  productId: number;
+  country: string;
+  percentage: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface VideoData {
+  id: number;
+  productId: number;
+  platform: string;
+  videoUrl: string;
+  title: string;
+  views: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export default function ProductDetail({ id }: ProductDetailProps) {
   const { toast } = useToast();
   const [, navigate] = useLocation();
+  const queryClient = useQueryClient();
 
-  const { data: product, isLoading, error } = useQuery({
-    queryKey: ['/api/products', id],
-    throwOnError: false
+  // WebSocket integration for real-time updates
+  useWebSocket({
+    onOpen: () => {
+      console.log('WebSocket connection opened on ProductDetail');
+    },
+    onMessage: (message) => {
+      // Handle both potential message types
+      if ((message.type === WS_MESSAGE_TYPES.PRODUCT_UPDATE || 
+           message.type === WS_MESSAGE_TYPES.PRODUCT_UPDATED) && 
+          message.productId === id) {
+        console.log(`Product ${id} update received, refreshing details`);
+        
+        // Invalidate queries to refresh all product data
+        queryClient.invalidateQueries({ queryKey: [API.PRODUCTS, id] });
+        queryClient.invalidateQueries({ queryKey: [API.TRENDS, id] });
+        queryClient.invalidateQueries({ queryKey: [API.REGIONS, id] });
+        queryClient.invalidateQueries({ queryKey: [API.VIDEOS, id] });
+        
+        toast({
+          title: 'Product Updated',
+          description: 'This product data has been updated',
+        });
+      }
+    }
   });
 
-  useEffect(() => {
-    if (error) {
+  // Fetch product data
+  const { 
+    data: product, 
+    isLoading: isProductLoading, 
+    error: productError,
+    refetch: refetchProduct
+  } = useQuery({
+    queryKey: [API.PRODUCTS, id],
+    queryFn: () => ProductService.getProduct(id),
+    enabled: !!id,
+    retry: 2, // Retry failed requests
+    retryDelay: 1000 // Wait 1 second between retries
+  });
+
+  // Get trends data
+  const { 
+    data: trends,
+    isLoading: isTrendsLoading,
+    refetch: refetchTrends
+  } = useQuery({
+    queryKey: [API.TRENDS, id],
+    queryFn: () => TrendService.getTrendsForProduct(id),
+    enabled: !!id && !!product
+  });
+
+  // Get regions data
+  const { 
+    data: regions,
+    isLoading: isRegionsLoading,
+    refetch: refetchRegions
+  } = useQuery({
+    queryKey: [API.REGIONS, id],
+    queryFn: () => RegionService.getRegionsForProduct(id),
+    enabled: !!id && !!product
+  });
+
+  // Get videos data
+  const { 
+    data: videos,
+    isLoading: isVideosLoading,
+    refetch: refetchVideos
+  } = useQuery({
+    queryKey: [API.VIDEOS, id],
+    queryFn: () => VideoService.getVideosForProduct(id),
+    enabled: !!id && !!product
+  });
+
+  // Retry logic for handling errors
+  const handleRetry = async () => {
+    try {
+      await refetchProduct();
+      if (product) {
+        await Promise.all([
+          refetchTrends(),
+          refetchRegions(),
+          refetchVideos()
+        ]);
+      }
+    } catch (error) {
       toast({
-        title: 'Error',
-        description: 'Failed to load product details',
+        title: 'Retry Failed',
+        description: 'Could not load product data. Please try again later.',
         variant: 'destructive',
       });
     }
-  }, [error, toast]);
+  };
+
+  useEffect(() => {
+    if (productError) {
+      toast({
+        title: 'Error',
+        description: 'Failed to load product details. You can try refreshing.',
+        variant: 'destructive',
+      });
+    }
+  }, [productError, toast]);
+
+  const isLoading = isProductLoading || isTrendsLoading || isRegionsLoading || isVideosLoading;
 
   if (isLoading) {
     return <LoadingScreen />;
@@ -40,14 +154,21 @@ export default function ProductDetail({ id }: ProductDetailProps) {
       <div className="text-center py-20">
         <h2 className="text-2xl font-bold text-foreground">Product Not Found</h2>
         <p className="text-muted-foreground mt-2">The product you're looking for doesn't exist or has been removed.</p>
-        <Button 
-          className="mt-6" 
-          variant="default" 
-          onClick={() => navigate('/')}
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Dashboard
-        </Button>
+        <div className="mt-6 flex gap-4 justify-center">
+          <Button 
+            onClick={handleRetry}
+            variant="outline"
+          >
+            Try Again
+          </Button>
+          <Button 
+            variant="default" 
+            onClick={() => navigate('/')}
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Dashboard
+          </Button>
+        </div>
       </div>
     );
   }
@@ -73,6 +194,7 @@ export default function ProductDetail({ id }: ProductDetailProps) {
             Analyze Trends
           </Button>
           <Button variant="default">
+            <Download className="mr-2 h-4 w-4" />
             Export Data
           </Button>
         </div>
@@ -93,7 +215,7 @@ export default function ProductDetail({ id }: ProductDetailProps) {
               </span>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Based on 30 days of data
+              Based on {trends?.length || 0} data points
             </p>
           </CardContent>
         </Card>
@@ -124,7 +246,7 @@ export default function ProductDetail({ id }: ProductDetailProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {product.regionCount || 0}
+              {regions?.length || 0}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               Global Distribution
@@ -141,7 +263,7 @@ export default function ProductDetail({ id }: ProductDetailProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {product.videoCount || 0}
+              {videos?.length || 0}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               Across Social Platforms
@@ -156,9 +278,19 @@ export default function ProductDetail({ id }: ProductDetailProps) {
             <CardTitle>Trend Analysis</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-80 flex items-center justify-center text-muted-foreground">
-              Trend chart visualization will appear here
-            </div>
+            {trends && trends.length > 0 ? (
+              <div className="h-80">
+                {/* Here we would implement a chart visualization using the trends data */}
+                <div className="h-full flex items-center justify-center text-muted-foreground">
+                  {/* For now, just display a placeholder */}
+                  {`${trends.length} trend data points available for visualization`}
+                </div>
+              </div>
+            ) : (
+              <div className="h-80 flex items-center justify-center text-muted-foreground">
+                No trend data available for this product
+              </div>
+            )}
           </CardContent>
         </Card>
         
@@ -167,9 +299,34 @@ export default function ProductDetail({ id }: ProductDetailProps) {
             <CardTitle>Regional Distribution</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-80 flex items-center justify-center text-muted-foreground">
-              Region map will appear here
-            </div>
+            {regions && regions.length > 0 ? (
+              <div className="h-80">
+                {/* Here we would implement a map or chart visualization using the regions data */}
+                <div className="h-full flex flex-col justify-center">
+                  {/* For now, just list the regions */}
+                  <div className="space-y-2">
+                    {regions.slice(0, 5).map((region: Region) => (
+                      <div key={region.id} className="flex justify-between items-center p-2 rounded-md border">
+                        <div className="flex items-center">
+                          <Globe className="h-4 w-4 mr-2 text-muted-foreground" />
+                          <span>{region.country}</span>
+                        </div>
+                        <span className="font-medium">{region.percentage}%</span>
+                      </div>
+                    ))}
+                    {regions.length > 5 && (
+                      <p className="text-center text-xs text-muted-foreground mt-2">
+                        And {regions.length - 5} more regions
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="h-80 flex items-center justify-center text-muted-foreground">
+                No regional data available for this product
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -179,9 +336,31 @@ export default function ProductDetail({ id }: ProductDetailProps) {
           <CardTitle>Marketing Videos</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-60 flex items-center justify-center text-muted-foreground">
-            Video gallery will appear here
-          </div>
+          {videos && videos.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {videos.map((video: VideoData) => (
+                <a 
+                  key={video.id} 
+                  href={video.videoUrl} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="block p-4 border rounded-md hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex flex-col h-full">
+                    <h4 className="font-medium text-sm mb-2 line-clamp-2">{video.title}</h4>
+                    <div className="mt-auto flex items-center justify-between text-muted-foreground text-xs">
+                      <span>{video.platform}</span>
+                      <span>{formatDate(video.createdAt)}</span>
+                    </div>
+                  </div>
+                </a>
+              ))}
+            </div>
+          ) : (
+            <div className="h-60 flex items-center justify-center text-muted-foreground">
+              No videos available for this product
+            </div>
+          )}
         </CardContent>
       </Card>
       

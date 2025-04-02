@@ -21,7 +21,8 @@ export const API = {
   HEALTH: '/api/health',
   AI_AGENT: '/api/agent',
   WEBSOCKET: `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//` + 
-             `${window.location.host}/ws`
+             `${window.location.host}/ws`,
+  LOGS: '/api/logs'
 };
 
 /**
@@ -35,7 +36,12 @@ export const WS_MESSAGE_TYPES = {
   PRODUCT_UPDATE: 'product_update',
   INITIALIZE: 'initialize',
   START: 'start',
-  STOP: 'stop'
+  STOP: 'stop',
+  PING: 'ping',
+  PONG: 'pong',
+  ERROR: 'error',
+  LOG_ENTRY: 'log_entry',
+  LOGS_CLEARED: 'logs_cleared'
 };
 
 /**

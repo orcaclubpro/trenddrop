@@ -21,6 +21,38 @@ import { WS_MESSAGE_TYPES, API } from '@/lib/constants';
 import { DashboardService, ProductService } from '@/services';
 import { RecentProductsCarousel } from '@/components/products/RecentProductsCarousel';
 
+// Define types for product data
+interface Product {
+  id: number;
+  name: string;
+  category: string;
+  trendScore: number;
+  price?: number;
+  imageUrl?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface Category {
+  name: string;
+  count: number;
+  percentage: number;
+}
+
+interface DashboardData {
+  productCount: number;
+  newProductCount: number;
+  averageTrendScore?: number;
+  trendScoreChange?: number;
+  regionCount: number;
+  countryCount: number;
+  averagePrice?: number;
+  priceChange?: number;
+  recentProducts: Product[];
+  trendDistribution?: Record<string, number>;
+  topCategories?: Category[];
+}
+
 export default function Dashboard() {
   const { toast } = useToast();
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -30,14 +62,30 @@ export default function Dashboard() {
   // WebSocket integration for real-time updates
   useWebSocket({
     onOpen: () => {
-      console.log('WebSocket connection opened');
+      console.log('WebSocket connection opened on Dashboard');
+      // Optionally refresh data when WebSocket connects
+      queryClient.invalidateQueries({ queryKey: [API.DASHBOARD] });
     },
     onMessage: (message) => {
-      if (message.type === WS_MESSAGE_TYPES.PRODUCT_UPDATE) {
+      // Handle both message types that the server might send
+      if (message.type === WS_MESSAGE_TYPES.PRODUCT_UPDATE || 
+          message.type === WS_MESSAGE_TYPES.PRODUCT_UPDATED) {
+        console.log('Product update received, refreshing dashboard data');
+        
         // Invalidate queries to refresh data
         queryClient.invalidateQueries({ queryKey: [API.DASHBOARD] });
-        console.log('Product update received, refreshing data');
+        queryClient.invalidateQueries({ queryKey: [API.DASHBOARD + '/products'] });
+        queryClient.invalidateQueries({ queryKey: [API.PRODUCTS] });
+        
+        // Show toast notification for product update
+        toast({
+          title: 'Product Update',
+          description: 'Product data has been updated',
+        });
       }
+    },
+    onError: (error) => {
+      console.error('WebSocket error in Dashboard:', error);
     }
   });
 
@@ -47,7 +95,7 @@ export default function Dashboard() {
     isLoading: isDashboardLoading, 
     error: dashboardError, 
     refetch: refetchDashboard 
-  } = useQuery({
+  } = useQuery<DashboardData>({
     queryKey: [API.DASHBOARD],
     queryFn: () => DashboardService.getDashboardSummary()
   });
@@ -57,8 +105,8 @@ export default function Dashboard() {
     data: trendingProducts,
     isLoading: isTrendingLoading,
     error: trendingError
-  } = useQuery({
-    queryKey: [API.TRENDING_PRODUCTS],
+  } = useQuery<Product[]>({
+    queryKey: [API.DASHBOARD + '/products'],
     queryFn: () => ProductService.getTrendingProducts(5)
   });
 
@@ -86,7 +134,7 @@ export default function Dashboard() {
     try {
       await Promise.all([
         refetchDashboard(),
-        queryClient.invalidateQueries({ queryKey: [API.TRENDING_PRODUCTS] })
+        queryClient.invalidateQueries({ queryKey: [API.DASHBOARD + '/products'] })
       ]);
       
       toast({
@@ -110,12 +158,26 @@ export default function Dashboard() {
     return <LoadingScreen />;
   }
 
+  // Ensure we have the dashboard data
+  if (!dashboardData) {
+    return (
+      <div className="text-center py-20">
+        <h2 className="text-2xl font-bold">No Dashboard Data Available</h2>
+        <p className="text-muted-foreground mt-2">There was an issue loading the dashboard data.</p>
+        <Button className="mt-6" onClick={handleRefresh} disabled={isRefreshing}>
+          <RefreshCcw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+          Try Again
+        </Button>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-          <p className="text-muted-foreground">
+          <p className="text-muted-foreground mt-1">
             Your product trend intelligence at a glance
           </p>
         </div>
@@ -123,6 +185,7 @@ export default function Dashboard() {
           variant="outline"
           onClick={handleRefresh}
           disabled={isRefreshing}
+          className="rounded-full px-4 h-10 border-2 hover:border-primary transition-all"
         >
           <RefreshCcw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
           Refresh
@@ -130,89 +193,112 @@ export default function Dashboard() {
       </div>
 
       {/* Recent Products Carousel */}
-      <div>
-        <h3 className="text-lg font-semibold mb-4">Recent</h3>
+      <div className="bg-card rounded-xl shadow-sm border p-6">
+        <h3 className="text-xl font-semibold mb-6 flex items-center gap-2">
+          <Package className="h-5 w-5 text-primary" /> Recent Products
+        </h3>
         <RecentProductsCarousel products={dashboardData?.recentProducts || []} />
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-l-4 border-l-primary">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Card className="border-l-[6px] border-l-primary shadow-sm hover-card">
           <CardHeader className="pb-2">
-            <CardTitle className="flex justify-between items-center text-base font-medium">
+            <CardTitle className="flex justify-between items-center text-base font-semibold">
               Products Tracked
-              <Package className="h-4 w-4 text-muted-foreground" />
+              <Package className="h-5 w-5 text-primary" />
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-3xl font-bold">
               {formatCompactNumber(dashboardData?.productCount || 0)}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {dashboardData?.newProductCount ? `+${dashboardData.newProductCount} this week` : 'No new products this week'}
+            <p className="text-sm text-muted-foreground mt-2 flex items-center gap-1">
+              {dashboardData?.newProductCount ? (
+                <>
+                  <span className="text-emerald-500 font-medium">+{dashboardData.newProductCount}</span> 
+                  <span>this week</span>
+                </>
+              ) : 'No new products this week'}
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-green-500">
+        <Card className="border-l-[6px] border-l-emerald-500 shadow-sm hover-card">
           <CardHeader className="pb-2">
-            <CardTitle className="flex justify-between items-center text-base font-medium">
+            <CardTitle className="flex justify-between items-center text-base font-semibold">
               Average Trend Score
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+              <TrendingUp className="h-5 w-5 text-emerald-500" />
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-3xl font-bold">
               {dashboardData?.averageTrendScore?.toFixed(1) || '0'}/100
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-sm text-muted-foreground mt-2 flex items-center gap-1">
               {dashboardData?.trendScoreChange !== undefined 
                 ? (dashboardData.trendScoreChange > 0 
-                  ? `↑ ${dashboardData.trendScoreChange.toFixed(1)} points` 
-                  : dashboardData.trendScoreChange < 0 
-                    ? `↓ ${Math.abs(dashboardData.trendScoreChange).toFixed(1)} points` 
-                    : 'No change in trend score')
+                  ? (
+                    <>
+                      <span className="text-emerald-500 font-medium">↑ {dashboardData.trendScoreChange.toFixed(1)}</span>
+                      <span>points</span>
+                    </>
+                  ) : dashboardData.trendScoreChange < 0 
+                    ? (
+                      <>
+                        <span className="text-rose-500 font-medium">↓ {Math.abs(dashboardData.trendScoreChange).toFixed(1)}</span>
+                        <span>points</span>
+                      </>
+                    ) : 'No change in trend score')
                 : 'No change in trend score'}
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-amber-500">
+        <Card className="border-l-[6px] border-l-amber-500 shadow-sm hover-card">
           <CardHeader className="pb-2">
-            <CardTitle className="flex justify-between items-center text-base font-medium">
+            <CardTitle className="flex justify-between items-center text-base font-semibold">
               Active Regions
-              <Globe className="h-4 w-4 text-muted-foreground" />
+              <Globe className="h-5 w-5 text-amber-500" />
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-3xl font-bold">
               {formatCompactNumber(dashboardData?.regionCount || 0)}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Across {dashboardData?.countryCount || 0} countries
+            <p className="text-sm text-muted-foreground mt-2">
+              {dashboardData?.countryCount ? `Across ${dashboardData.countryCount} countries` : 'No country data available'}
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-blue-500">
+        <Card className="border-l-[6px] border-l-teal-500 shadow-sm hover-card">
           <CardHeader className="pb-2">
-            <CardTitle className="flex justify-between items-center text-base font-medium">
-              Avg. Market Value
-              <Zap className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="flex justify-between items-center text-base font-semibold">
+              Average Price
+              <Zap className="h-5 w-5 text-teal-500" />
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(dashboardData?.averagePrice || 0)}
+            <div className="text-3xl font-bold">
+              {dashboardData?.averagePrice ? formatCurrency(dashboardData.averagePrice) : '$0.00'}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-sm text-muted-foreground mt-2 flex items-center gap-1">
               {dashboardData?.priceChange !== undefined 
                 ? (dashboardData.priceChange > 0 
-                  ? `↑ ${dashboardData.priceChange.toFixed(1)}% increase` 
-                  : dashboardData.priceChange < 0 
-                    ? `↓ ${Math.abs(dashboardData.priceChange).toFixed(1)}% decrease` 
-                    : 'No price change')
-                : 'No price change'}
+                  ? (
+                    <>
+                      <span className="text-emerald-500 font-medium">↑ {formatCurrency(dashboardData.priceChange)}</span>
+                      <span>from previous</span>
+                    </>
+                  ) : dashboardData.priceChange < 0 
+                    ? (
+                      <>
+                        <span className="text-rose-500 font-medium">↓ {formatCurrency(Math.abs(dashboardData.priceChange))}</span>
+                        <span>from previous</span>
+                      </>
+                    ) : 'No change in average price')
+                : 'No price change data available'}
             </p>
           </CardContent>
         </Card>
@@ -235,9 +321,18 @@ export default function Dashboard() {
             </Button>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-              Trend score chart visualization will appear here
-            </div>
+            {dashboardData?.trendDistribution ? (
+              <div className="h-[300px]">
+                {/* Chart visualization would go here */}
+                <div className="h-full flex items-center justify-center text-muted-foreground">
+                  Trend score chart visualization with {Object.keys(dashboardData.trendDistribution).length} categories
+                </div>
+              </div>
+            ) : (
+              <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                No trend distribution data available
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -250,28 +345,26 @@ export default function Dashboard() {
             </p>
           </CardHeader>
           <CardContent>
-            <div className="space-y-8">
-              {trendingProducts?.length ? (
-                trendingProducts.map((product, index) => (
-                  <div key={product.id} className="flex items-center">
-                    <div className="w-10 h-10 rounded bg-primary/10 flex items-center justify-center mr-3">
-                      <span className="font-medium">{index + 1}</span>
+            {trendingProducts && trendingProducts.length > 0 ? (
+              <div className="space-y-4">
+                {trendingProducts.map((product: Product, index: number) => (
+                  <div key={product.id} className="flex items-center space-x-4">
+                    <span className="text-muted-foreground font-medium">{index + 1}</span>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-medium truncate">{product.name}</h4>
+                      <p className="text-xs text-muted-foreground truncate">{product.category}</p>
                     </div>
-                    <div className="flex-1 space-y-1">
-                      <p className="font-medium leading-none">{product.name}</p>
-                      <p className="text-sm text-muted-foreground">{product.category}</p>
-                    </div>
-                    <div className="font-medium">
-                      {product.trendScore}/100
+                    <div className="text-right">
+                      <span className="text-sm font-bold">{product.trendScore}/100</span>
                     </div>
                   </div>
-                ))
-              ) : (
-                <div className="flex items-center justify-center h-[200px] text-muted-foreground">
-                  No product data available
-                </div>
-              )}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="py-8 text-center text-muted-foreground">
+                No trending products found
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -288,7 +381,7 @@ export default function Dashboard() {
           <CardContent>
             <div className="space-y-6">
               {dashboardData?.topCategories?.length ? (
-                dashboardData.topCategories.map((category, index) => (
+                dashboardData.topCategories.map((category: Category, index: number) => (
                   <div key={index} className="space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium">{category.name}</span>

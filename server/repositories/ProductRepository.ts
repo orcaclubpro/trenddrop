@@ -4,21 +4,31 @@
  * This repository handles all product-related data operations.
  */
 
-import { eq, gte, and, desc, asc, sql, like, or } from 'drizzle-orm';
-import * as schema from '../../shared/schema.js';
-import { BaseRepository } from './Repository.js';
+import { eq, and, or, between, gte, lte, desc, asc, sql } from 'drizzle-orm';
+import { Product, ProductFilter } from '@shared/schema.js';
 import databaseService from '../services/database-service.js';
+import * as schema from '@shared/schema.js';
+import { BaseRepository } from './Repository.js';
 import { eventBus } from '../core/EventBus.js';
 import { log } from '../vite.js';
 
 export class ProductRepository extends BaseRepository<schema.Product, number> {
+  constructor() {
+    super();
+  }
+
   /**
    * Find a product by ID
    */
-  async findById(id: number): Promise<schema.Product | undefined> {
+  async findById(id: number): Promise<Product | undefined> {
     try {
       const db = databaseService.getDb();
-      const result = await db.select().from(schema.products).where(eq(schema.products.id, id)).limit(1);
+      const result = await db
+        .select()
+        .from(schema.products)
+        .where(eq(schema.products.id, id))
+        .limit(1);
+      
       return result.length > 0 ? result[0] : undefined;
     } catch (error) {
       log(`Error finding product by ID: ${error}`, 'product-repo');
@@ -29,87 +39,111 @@ export class ProductRepository extends BaseRepository<schema.Product, number> {
   /**
    * Find all products with filtering and pagination
    */
-  async findAll(filter: schema.ProductFilter = { page: 1, limit: 10 }): Promise<{ data: schema.Product[], total: number }> {
+  async findAll(filter: ProductFilter = { page: 1, limit: 10 }): Promise<{ data: Product[], total: number }> {
     try {
-      const db = databaseService.getDb();
-      const {
-        page = 1,
-        pageSize = 10,
-        category,
-        minTrendScore,
-        sortBy = 'trendScore',
-        sortDirection = 'desc',
-        search,
-        createdAfter,
-        createdBefore
-      } = filter;
-
-      // Build the where clause
       const whereConditions = [];
-
-      if (category) {
-        whereConditions.push(eq(schema.products.category, category));
-      }
-
-      if (minTrendScore) {
-        whereConditions.push(gte(schema.products.trendScore, minTrendScore));
-      }
-
-      if (search) {
+      
+      // Add search condition if provided
+      if (filter.search) {
         whereConditions.push(
           or(
-            like(schema.products.name, `%${search}%`),
-            like(schema.products.category, `%${search}%`),
-            like(schema.products.subcategory, `%${search}%`),
-            like(schema.products.description, `%${search}%`)
+            sql`LOWER(${schema.products.name}) LIKE LOWER(${'%' + filter.search + '%'})`,
+            sql`LOWER(${schema.products.category}) LIKE LOWER(${'%' + filter.search + '%'})`
           )
         );
       }
-
-      if (createdAfter) {
-        whereConditions.push(gte(schema.products.createdAt, createdAfter));
+      
+      // Add category filter if provided
+      if (filter.category) {
+        whereConditions.push(eq(schema.products.category, filter.category));
       }
-
-      if (createdBefore) {
-        whereConditions.push(sql`${schema.products.createdAt} <= ${createdBefore.toISOString()}`);
+      
+      // Add range filters if provided
+      if (filter.priceRange) {
+        whereConditions.push(
+          and(
+            gte(schema.products.priceRangeLow, filter.priceRange[0]),
+            lte(schema.products.priceRangeHigh, filter.priceRange[1])
+          )
+        );
       }
-
-      // Calculate pagination
-      const offset = (page - 1) * pageSize;
-
-      // Build the sort clause
-      const sortColumn = sortBy === 'name' ? schema.products.name
-        : sortBy === 'category' ? schema.products.category
-        : sortBy === 'engagementRate' ? schema.products.engagementRate
-        : sortBy === 'salesVelocity' ? schema.products.salesVelocity
-        : sortBy === 'searchVolume' ? schema.products.searchVolume
-        : sortBy === 'createdAt' ? schema.products.createdAt
-        : schema.products.trendScore;
-
-      const sortOrder = sortDirection === 'asc' ? asc(sortColumn) : desc(sortColumn);
-
-      // Execute the query
-      const whereClause = whereConditions.length > 0 
-        ? and(...whereConditions) 
-        : undefined;
-
-      const products = await db
-        .select()
-        .from(schema.products)
-        .where(whereClause)
-        .orderBy(sortOrder)
-        .limit(pageSize)
-        .offset(offset);
-
-      // Count total matching products
-      const totalResult = await db
-        .select({ count: sql`count(*)` })
-        .from(schema.products)
-        .where(whereClause);
-
-      const total = Number(totalResult[0].count);
-
-      return { data: products, total };
+      
+      if (filter.trendScore) {
+        whereConditions.push(
+          between(schema.products.trendScore, filter.trendScore[0], filter.trendScore[1])
+        );
+      }
+      
+      if (filter.engagementRate) {
+        whereConditions.push(
+          between(schema.products.engagementRate, filter.engagementRate[0], filter.engagementRate[1])
+        );
+      }
+      
+      if (filter.salesVelocity) {
+        whereConditions.push(
+          between(schema.products.salesVelocity, filter.salesVelocity[0], filter.salesVelocity[1])
+        );
+      }
+      
+      if (filter.searchVolume) {
+        whereConditions.push(
+          between(schema.products.searchVolume, filter.searchVolume[0], filter.searchVolume[1])
+        );
+      }
+      
+      if (filter.geographicSpread) {
+        whereConditions.push(
+          between(schema.products.geographicSpread, filter.geographicSpread[0], filter.geographicSpread[1])
+        );
+      }
+      
+      // Add date range filters if provided
+      if (filter.createdAfter) {
+        whereConditions.push(gte(schema.products.createdAt, filter.createdAfter));
+      }
+      
+      if (filter.createdBefore) {
+        whereConditions.push(lte(schema.products.createdAt, filter.createdBefore));
+      }
+      
+      // Build the query
+      const db = databaseService.getDb();
+      let query = db.select().from(schema.products);
+      
+      // Add where conditions if any exist
+      if (whereConditions.length > 0) {
+        query = query.where(and(...whereConditions));
+      }
+      
+      // Add sorting if provided
+      if (filter.sortBy) {
+        const sortColumn = schema.products[filter.sortBy as keyof typeof schema.products];
+        if (sortColumn) {
+          query = query.orderBy(
+            filter.sortDirection === 'desc' ? desc(sortColumn) : asc(sortColumn)
+          );
+        }
+      }
+      
+      // Add pagination
+      const offset = (filter.page - 1) * filter.limit;
+      query = query.offset(offset).limit(filter.limit);
+      
+      // Execute query
+      const productsResult = await query;
+      
+      // Count total
+      let countQuery = db.select({ count: sql`count(*)` }).from(schema.products);
+      if (whereConditions.length > 0) {
+        countQuery = countQuery.where(and(...whereConditions));
+      }
+      const totalResult = await countQuery;
+      
+      return {
+        data: productsResult,
+        total: Number(totalResult[0].count)
+      };
     } catch (error) {
       log(`Error finding products: ${error}`, 'product-repo');
       throw error;
@@ -119,10 +153,13 @@ export class ProductRepository extends BaseRepository<schema.Product, number> {
   /**
    * Create a new product
    */
-  async create(productData: schema.InsertProduct): Promise<schema.Product> {
+  async create(product: schema.InsertProduct): Promise<Product> {
     try {
       const db = databaseService.getDb();
-      const result = await db.insert(schema.products).values(productData).returning();
+      const result = await db
+        .insert(schema.products)
+        .values(product)
+        .returning();
       
       if (result.length === 0) {
         throw new Error('Failed to create product');
@@ -147,12 +184,12 @@ export class ProductRepository extends BaseRepository<schema.Product, number> {
   /**
    * Update an existing product
    */
-  async update(id: number, productData: Partial<schema.InsertProduct>): Promise<schema.Product | undefined> {
+  async update(id: number, product: Partial<schema.InsertProduct>): Promise<Product | undefined> {
     try {
       const db = databaseService.getDb();
       const result = await db
         .update(schema.products)
-        .set(productData)
+        .set(product)
         .where(eq(schema.products.id, id))
         .returning();
       

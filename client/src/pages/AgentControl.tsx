@@ -23,6 +23,7 @@ import { WS_MESSAGE_TYPES, API } from '@/lib/constants';
 import { LoadingScreen } from '@/components/ui/loading-screen';
 import { useToast } from '@/hooks/use-toast';
 import { AgentService } from '@/services';
+import { LogService, LogEntry } from '@/services/LogService';
 
 export default function AgentControl() {
   const { toast } = useToast();
@@ -30,6 +31,10 @@ export default function AgentControl() {
   const [isInitializing, setIsInitializing] = useState(false);
   const [isStartingAgent, setIsStartingAgent] = useState(false);
   const [isStoppingAgent, setIsStoppingAgent] = useState(false);
+  
+  // Log state
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [isLoadingLogs, setIsLoadingLogs] = useState(false);
 
   // Initialize agent action
   const handleInitialize = async () => {
@@ -75,6 +80,8 @@ export default function AgentControl() {
 
       // Refresh status
       refetchStatus();
+      // Load latest logs after starting agent
+      loadLogs();
     } catch (error) {
       console.error('Error starting agent:', error);
       toast({
@@ -115,6 +122,45 @@ export default function AgentControl() {
       setIsStoppingAgent(false);
     }
   };
+  
+  // Load logs function
+  const loadLogs = async () => {
+    try {
+      setIsLoadingLogs(true);
+      const response = await LogService.getLogs(100, 'agent');
+      if (response?.logs) {
+        setLogs(response.logs);
+      }
+    } catch (error) {
+      console.error('Error loading logs:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load agent logs',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingLogs(false);
+    }
+  };
+
+  // Clear logs function
+  const clearLogs = async () => {
+    try {
+      await LogService.clearLogs();
+      setLogs([]);
+      toast({
+        title: 'Logs Cleared',
+        description: 'All logs have been cleared',
+      });
+    } catch (error) {
+      console.error('Error clearing logs:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to clear logs',
+        variant: 'destructive',
+      });
+    }
+  };
 
   const queryClient = useQueryClient();
   
@@ -129,6 +175,11 @@ export default function AgentControl() {
     queryFn: () => AgentService.getStatus(),
     refetchInterval: 10000, // Auto-refresh every 10 seconds
   });
+  
+  // Load logs on component mount
+  useEffect(() => {
+    loadLogs();
+  }, []);
 
   // Default agent status structure for when data is loading
   const defaultAgentStatus = {
@@ -174,6 +225,9 @@ export default function AgentControl() {
       if (message.type === WS_MESSAGE_TYPES.AGENT_STATUS) {
         // Invalidate the query to refresh data
         queryClient.invalidateQueries({ queryKey: [`${API.AI_AGENT}/status`] });
+      } else if (message.type === 'log_entry' && message.entry?.source === 'agent') {
+        // Add new log entry
+        setLogs(currentLogs => [message.entry, ...currentLogs].slice(0, 100));
       }
     }
   });
@@ -192,6 +246,7 @@ export default function AgentControl() {
   // Handle status refresh
   const handleRefresh = () => {
     refetchStatus();
+    loadLogs();
   };
 
   // Display loading screen while initial data is being fetched
@@ -218,7 +273,7 @@ export default function AgentControl() {
         <Button
           variant="outline"
           onClick={handleRefresh}
-          disabled={isStatusLoading}
+          disabled={isStatusLoading || isLoadingLogs}
         >
           <RefreshCcw className="mr-2 h-4 w-4" />
           Refresh
@@ -407,16 +462,38 @@ export default function AgentControl() {
         </div>
         
         <Card className="md:col-span-3">
-          <CardHeader>
-            <CardTitle>Agent Logs</CardTitle>
-            <CardDescription>Recent agent activity and events</CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <div>
+              <CardTitle>Agent Logs</CardTitle>
+              <CardDescription>Recent agent activity and events</CardDescription>
+            </div>
+            <Button
+              onClick={clearLogs}
+              variant="outline"
+              size="sm"
+            >
+              Clear Logs
+            </Button>
           </CardHeader>
           <CardContent>
             <div className="h-80 bg-black/5 rounded-md p-4 overflow-y-auto font-mono text-xs">
-              {/* Agent log entries would appear here */}
-              <div className="text-muted-foreground italic flex items-center justify-center h-full">
-                No log entries available
-              </div>
+              {isLoadingLogs ? (
+                <div className="text-muted-foreground italic flex items-center justify-center h-full">
+                  Loading logs...
+                </div>
+              ) : logs.length === 0 ? (
+                <div className="text-muted-foreground italic flex items-center justify-center h-full">
+                  No log entries available
+                </div>
+              ) : (
+                logs.map((log, index) => (
+                  <div key={index} className={`mb-1 pb-1 border-b border-gray-100 ${log.level === 'error' ? 'text-red-500' : log.level === 'warn' ? 'text-amber-500' : ''}`}>
+                    <span className="text-gray-400">[{new Date(log.timestamp).toLocaleTimeString()}]</span>{' '}
+                    <span className="text-blue-500">[{log.source}]</span>{' '}
+                    {log.message}
+                  </div>
+                ))
+              )}
             </div>
           </CardContent>
         </Card>

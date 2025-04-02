@@ -29,3 +29,6 @@ export {
   triggerScraping,
   getAgentStatus
 } from './AgentService.js';
+
+// Export log service
+export { logService } from './common/LogService.js';

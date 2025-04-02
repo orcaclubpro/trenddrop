@@ -11,6 +11,10 @@ import { nanoid } from "nanoid";
 
 const viteLogger = createLogger();
 
+// Import the LogService (using dynamic import to avoid circular dependencies)
+let logService: any = null;
+// We'll initialize the logService later after it's been created
+
 // At the top of server/vite.ts
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -21,8 +25,18 @@ export function log(message: string, source = "express") {
   });
 
   console.log(`${formattedTime} [${source}] ${message}`);
+  
+  // Add to logService if it's initialized
+  if (logService) {
+    logService.addLog(source, message);
+  }
 }
 
+// Function to set the log service after it's been initialized
+export function setLogService(service: any): void {
+  logService = service;
+  log('LogService connected to central logger', 'vite');
+}
 
 // Set up Vite in development mode
 export async function setupVite(app: Express, server: Server) {

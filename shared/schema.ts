@@ -101,16 +101,18 @@ export type Video = typeof videos.$inferSelect;
 
 // API Schemas for Frontend
 export const productFilterSchema = z.object({
-  trendScore: z.number().optional(),
-  minTrendScore: z.number().optional(),
+  search: z.string().optional(),
   category: z.string().optional(),
-  region: z.string().optional(),
+  priceRange: z.tuple([z.number(), z.number()]).optional(),
+  trendScore: z.tuple([z.number(), z.number()]).optional(),
+  engagementRate: z.tuple([z.number(), z.number()]).optional(),
+  salesVelocity: z.tuple([z.number(), z.number()]).optional(),
+  searchVolume: z.tuple([z.number(), z.number()]).optional(),
+  geographicSpread: z.tuple([z.number(), z.number()]).optional(),
   page: z.number().default(1),
   limit: z.number().default(10),
-  pageSize: z.number().optional(),
   sortBy: z.string().optional(),
   sortDirection: z.enum(['asc', 'desc']).optional(),
-  search: z.string().optional(),
   createdAfter: z.date().optional(),
   createdBefore: z.date().optional(),
 });

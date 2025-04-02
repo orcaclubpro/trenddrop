@@ -8,6 +8,8 @@ import databaseService from './services/database-service.js';
 import { startAgentService, getAgentStatus } from './services/agent-service.js';
 import { initializeAIAgent, getAIAgentStatus } from './services/ai-agent-service.js';
 import { setupVite, serveStatic, log } from './vite.js';
+import { logService } from './services/common/LogService.js';
+import { setLogService } from './vite.js';
 
 // Constants
 const MAX_RETRIES = 5;
@@ -18,6 +20,52 @@ const app = express();
 
 // Initialize app
 initializeApp();
+
+// Handle exit signals
+let httpServer: Server;
+
+// Graceful shutdown function
+const gracefulShutdown = async () => {
+  log('Graceful shutdown initiated...');
+  
+  // Clear intervals
+  if ((global as any).agentInterval) {
+    log('Clearing agent interval...');
+    clearInterval((global as any).agentInterval);
+  }
+  
+  // Close WebSocket server if it exists
+  if ((global as any).wss) {
+    log('Closing WebSocket server...');
+    ((global as any).wss as WebSocket.Server).close();
+  }
+  
+  // Close HTTP server if it exists
+  if (httpServer) {
+    log('Closing HTTP server...');
+    await new Promise<void>((resolve) => {
+      httpServer.close(() => {
+        log('HTTP server closed successfully');
+        resolve();
+      });
+    });
+  }
+  
+  // Close database connections
+  try {
+    log('Closing database connections...');
+    await databaseService.close();
+    log('Database connections closed successfully');
+  } catch (err) {
+    log(`Error closing database: ${err}`);
+  }
+  
+  log('Shutdown complete. Exiting process.');
+  process.exit(0);
+};
+
+process.on('SIGINT', gracefulShutdown);
+process.on('SIGTERM', gracefulShutdown);
 
 async function initializeApp(retryCount = 0): Promise<void> {
   try {
@@ -98,6 +146,7 @@ async function initializeApp(retryCount = 0): Promise<void> {
     
     // Register routes first
     const server = await registerRoutes(app);
+    httpServer = server; // Store server reference for graceful shutdown
 
     // Setup error handling middleware
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -300,6 +349,12 @@ async function initializeApp(retryCount = 0): Promise<void> {
       serveStatic(app);
     }
 
+    // Initialize logging service
+    log("Initializing LogService...");
+    logService.registerLogInterceptor();
+    setLogService(logService);
+    log("LogService initialized successfully");
+
     // Start the product tracking agent AFTER successful database initialization
     log("Starting agent service...");
     startAgentService();
@@ -393,7 +448,7 @@ async function initializeApp(retryCount = 0): Promise<void> {
     }, 10000); // Every 10 seconds
 
     // Start the server
-    const port = 5000;
+    const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 5000;
     server.listen(port, "0.0.0.0", () => {
       log(`TrendDrop application running on port ${port} and host 0.0.0.0`);
     });
@@ -408,14 +463,3 @@ async function initializeApp(retryCount = 0): Promise<void> {
     }
   }
 }
-
-// Handle exit signals
-process.on('SIGINT', () => {
-  log('Shutting down server...');
-  process.exit(0);
-});
-
-process.on('SIGTERM', () => {
-  log('Shutting down server...');
-  process.exit(0);
-});

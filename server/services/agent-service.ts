@@ -8,6 +8,7 @@ import { parse as parseHTML } from 'node-html-parser';
 import { TrendService } from './trend-service.js';
 import { JSDOM } from 'jsdom';
 import WebSocket from 'ws';
+import { logService } from './common/LogService.js';
 
 // Scraping interval (default: 1 hour)
 const SCRAPING_INTERVAL = process.env.SCRAPING_INTERVAL 
@@ -49,10 +50,12 @@ export class AgentService {
   public start(): void {
     if (this.isRunning) {
       log('Agent service is already running', 'agent');
+      logService.addLog('agent', 'Agent service is already running');
       return;
     }
 
     log('Starting agent service', 'agent');
+    logService.addLog('agent', 'Starting agent service');
     this.isRunning = true;
 
     // Broadcast initial status
@@ -67,6 +70,9 @@ export class AgentService {
     this.intervalId = setInterval(() => {
       this.runScrapingTask();
     }, SCRAPING_INTERVAL);
+    
+    // Store reference globally for cleanup
+    (global as any).agentInterval = this.intervalId;
 
     // Update status
     this.scraperStatus = {
@@ -88,9 +94,15 @@ export class AgentService {
     }
 
     log('Stopping agent service', 'agent');
+    logService.addLog('agent', 'Stopping agent service');
     if (this.intervalId) {
       clearInterval(this.intervalId);
       this.intervalId = null;
+      
+      // Clear global reference
+      if ((global as any).agentInterval) {
+        (global as any).agentInterval = null;
+      }
     }
 
     this.isRunning = false;
@@ -119,6 +131,7 @@ export class AgentService {
   private async runScrapingTask(): Promise<void> {
     try {
       log('Running product scraping task', 'agent');
+      logService.addLog('agent', 'Running product scraping task');
       
       // Update status
       this.scraperStatus = {
@@ -136,6 +149,7 @@ export class AgentService {
       // Check if database is initialized
       if (!databaseService.isInitialized()) {
         log('Database not initialized, will reinitialize', 'agent');
+        logService.addLog('agent', 'Database not initialized, will reinitialize');
         
         this.scraperStatus = {
           status: 'running',
@@ -150,6 +164,7 @@ export class AgentService {
         const success = await databaseService.initialize();
         if (!success) {
           log('Failed to initialize database, skipping scraping task', 'agent');
+          logService.addLog('agent', 'Failed to initialize database, skipping scraping task');
           
           this.scraperStatus = {
             status: 'error',
@@ -242,6 +257,7 @@ export class AgentService {
           
           const productId = result[0].id;
           log(`Processed product: ${product.name}`, 'agent');
+          logService.addLog('agent', `Processed product: ${product.name}`);
 
           // 3. Get trend data for the product
           const trends = await this.scrapeTrends(productId, product.name);
@@ -265,6 +281,7 @@ export class AgentService {
           this.broadcastUpdate(productId);
         } catch (error) {
           log(`Error processing product ${product.name}: ${error}`, 'agent');
+          logService.addLog('agent', `Error processing product: ${product.name}`);
           
           // Continue with next product
           this.broadcastStatus('warning', {
@@ -294,8 +311,10 @@ export class AgentService {
       });
       
       log('Product scraping task completed', 'agent');
+      logService.addLog('agent', 'Product scraping task completed');
     } catch (error) {
       log(`Error in scraping task: ${error}`, 'agent');
+      logService.addLog('agent', `Error in scraping task: ${error}`);
       
       this.scraperStatus = {
         status: 'error',
@@ -314,6 +333,7 @@ export class AgentService {
 
   private async scrapeProducts(): Promise<InsertProduct[]> {
     log('Scraping trending products', 'agent');
+    logService.addLog('agent', 'Scraping trending products');
     const products: InsertProduct[] = [];
 
     try {
@@ -323,6 +343,7 @@ export class AgentService {
       // Retrieve existing product data from the database to prevent duplicates
       const db = databaseService.getDb();
       log('Querying existing products to avoid duplicates', 'agent');
+      logService.addLog('agent', 'Querying existing products to avoid duplicates');
       const existingProducts = await db.query.products.findMany({
         columns: {
           id: true,
@@ -362,7 +383,9 @@ export class AgentService {
       });
       
       log(`Found ${existingProductNames.size} existing products in database`, 'agent');
+      logService.addLog('agent', `Found ${existingProductNames.size} existing products in database`);
       log(`Created ${existingProductsByIdentifier.size} lookup keys for duplicate detection`, 'agent');
+      logService.addLog('agent', `Created ${existingProductsByIdentifier.size} lookup keys for duplicate detection`);
       
       // Example: Scrape AliExpress trending products
       const response = await axios.get('https://www.aliexpress.com/category/201000001/electronics.html', {
@@ -373,6 +396,7 @@ export class AgentService {
       }).catch(err => {
         // If AliExpress fails, we'll just generate synthetic data
         log(`Error fetching AliExpress: ${err}. Using generated data instead.`, 'agent');
+        logService.addLog('agent', `Error fetching AliExpress: ${err}. Using generated data instead.`);
         return null;
       });
 
@@ -419,6 +443,7 @@ export class AgentService {
         // Skip if this name is already in our generated set or in the database
         if (generatedNames.has(productName) || existingProductNames.has(productName)) {
           log(`Skipping duplicate product name: ${productName}`, 'agent');
+          logService.addLog('agent', `Skipping duplicate product name: ${productName}`);
           continue;
         }
         
@@ -487,11 +512,14 @@ export class AgentService {
         });
         
         log(`Generated unique product #${successfulProducts}: ${productName}`, 'agent');
+        logService.addLog('agent', `Generated unique product #${successfulProducts}: ${productName}`);
       }
       
       log(`Scraped ${products.length} trending products in ${attemptCount} attempts`, 'agent');
+      logService.addLog('agent', `Scraped ${products.length} trending products in ${attemptCount} attempts`);
     } catch (error) {
       log(`Error scraping products: ${error}`, 'agent');
+      logService.addLog('agent', `Error scraping products: ${error}`);
       
       // Generate at least one fallback product with timestamp to ensure uniqueness
       const timestamp = new Date().toISOString().replace(/[-:.]/g, '');
@@ -516,6 +544,7 @@ export class AgentService {
       });
       
       log(`Created emergency product with unique name: ${emergencyName}`, 'agent');
+      logService.addLog('agent', `Created emergency product with unique name: ${emergencyName}`);
     }
 
     return products;
@@ -574,6 +603,7 @@ export class AgentService {
 
   private async scrapeTrends(productId: number, productName: string): Promise<InsertTrend[]> {
     log(`Scraping trends for product: ${productName}`, 'agent');
+    logService.addLog('agent', `Scraping trends for product: ${productName}`);
     const trends: InsertTrend[] = [];
 
     // Generate 30 days of trend data
@@ -607,11 +637,13 @@ export class AgentService {
     }
 
     log(`Generated ${trends.length} trend data points for product: ${productName}`, 'agent');
+    logService.addLog('agent', `Generated ${trends.length} trend data points for product: ${productName}`);
     return trends;
   }
 
   private async scrapeRegions(productId: number, productName: string): Promise<InsertRegion[]> {
     log(`Scraping regions for product: ${productName}`, 'agent');
+    logService.addLog('agent', `Scraping regions for product: ${productName}`);
     const regions: InsertRegion[] = [];
 
     // List of common regions
@@ -650,11 +682,13 @@ export class AgentService {
     });
 
     log(`Generated ${regions.length} regional data points for product: ${productName}`, 'agent');
+    logService.addLog('agent', `Generated ${regions.length} regional data points for product: ${productName}`);
     return regions;
   }
 
   private async scrapeVideos(productId: number, productName: string): Promise<InsertVideo[]> {
     log(`Scraping videos for product: ${productName}`, 'agent');
+    logService.addLog('agent', `Scraping videos for product: ${productName}`);
     const videos: InsertVideo[] = [];
 
     // Platforms for marketing videos
@@ -718,6 +752,7 @@ export class AgentService {
     }
 
     log(`Generated ${videos.length} marketing videos for product: ${productName}`, 'agent');
+    logService.addLog('agent', `Generated ${videos.length} marketing videos for product: ${productName}`);
     return videos;
   }
 
@@ -749,6 +784,7 @@ export class AgentService {
     const clientCount = broadcastFn(updateMessage);
     if (clientCount > 0) {
       log(`Broadcast product update for ID ${productId} to ${clientCount} clients`, 'agent');
+      logService.addLog('agent', `Broadcast product update for ID ${productId} to ${clientCount} clients`);
     }
   }
 
@@ -773,6 +809,7 @@ export class AgentService {
     const clientCount = broadcastFn(statusMessage);
     if (clientCount > 0) {
       log(`Broadcast agent status "${status}" to ${clientCount} clients`, 'agent');
+      logService.addLog('agent', `Broadcast agent status "${status}" to ${clientCount} clients`);
     }
   }
 

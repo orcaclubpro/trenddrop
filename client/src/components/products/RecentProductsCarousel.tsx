@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { TrendingUp, Package, MapPin, Video } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { TrendingUp, Package, MapPin, Video, ImageOff, Calendar } from 'lucide-react';
 
 import {
   Carousel,
@@ -9,7 +9,8 @@ import {
   CarouselPrevious,
 } from '@/components/ui/carousel';
 import { Card, CardContent } from '@/components/ui/card';
-import { formatCurrency, getTrendScoreColor } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
+import { formatCurrency, getTrendScoreColor, formatDate } from '@/lib/utils';
 import { ProductDrawer } from './ProductDrawer';
 
 interface Product {
@@ -33,6 +34,16 @@ interface RecentProductsCarouselProps {
 export function RecentProductsCarousel({ products }: RecentProductsCarouselProps) {
   const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [imageErrors, setImageErrors] = useState<Record<number, boolean>>({});
+
+  // Reset image errors when products change
+  useEffect(() => {
+    setImageErrors({});
+  }, [products]);
+
+  const handleImageError = (productId: number) => {
+    setImageErrors(prev => ({ ...prev, [productId]: true }));
+  };
 
   const handleProductClick = (productId: number) => {
     setSelectedProductId(productId);
@@ -67,36 +78,52 @@ export function RecentProductsCarousel({ products }: RecentProductsCarouselProps
               <CarouselItem key={product.id} className="basis-full sm:basis-1/2 md:basis-1/3 lg:basis-1/4 xl:basis-1/5">
                 <div className="p-1">
                   <Card 
-                    className="overflow-hidden border cursor-pointer hover:shadow-md transition-shadow"
+                    className="overflow-hidden border hover-card cursor-pointer"
                     onClick={() => handleProductClick(product.id)}
                   >
-                    <div className="h-32 bg-muted/40 relative flex items-center justify-center overflow-hidden">
-                      {product.imageUrl ? (
+                    <div className="relative h-40 bg-muted/50 flex items-center justify-center overflow-hidden">
+                      {product.imageUrl && !imageErrors[product.id] ? (
                         <img 
                           src={product.imageUrl} 
                           alt={product.name} 
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                          onError={() => handleImageError(product.id)}
+                          loading="lazy"
                         />
                       ) : (
-                        <Package className="h-10 w-10 text-muted-foreground" />
+                        <div className="flex flex-col items-center justify-center h-full w-full">
+                          {imageErrors[product.id] ? (
+                            <ImageOff className="h-10 w-10 text-muted-foreground" />
+                          ) : (
+                            <Package className="h-10 w-10 text-muted-foreground" />
+                          )}
+                        </div>
                       )}
                       <div className="absolute top-2 right-2">
-                        <div className={`px-2 py-1 rounded-md text-xs font-medium ${getTrendScoreColor(product.trendScore || 0)}`}>
+                        <Badge variant="outline" className={`px-2 py-1 text-xs font-medium bg-background/80 backdrop-blur-sm ${getTrendScoreColor(product.trendScore || 0)}`}>
                           {product.trendScore || 0}/100
-                        </div>
+                        </Badge>
+                      </div>
+                      <div className="absolute top-2 left-2">
+                        <Badge variant="outline" className="px-2 py-1 text-xs font-medium bg-accent/80 backdrop-blur-sm text-accent-foreground">
+                          {product.category || 'Uncategorized'}
+                        </Badge>
                       </div>
                     </div>
                     <CardContent className="p-4">
-                      <h3 className="font-medium text-sm truncate" title={product.name}>
+                      <h3 className="font-semibold text-sm truncate" title={product.name}>
                         {product.name}
                       </h3>
-                      <div className="mt-1 flex justify-between items-center">
-                        <span className="text-xs text-muted-foreground">{product.category}</span>
-                        <span className="text-xs font-medium">
+                      <div className="mt-2 flex justify-between items-center">
+                        <span className="text-lg font-bold text-primary">
                           {formatCurrency(product.price || 0)}
                         </span>
+                        <div className="flex items-center text-xs text-muted-foreground">
+                          <Calendar className="h-3 w-3 mr-1" />
+                          <span>{formatDate(product.createdAt)}</span>
+                        </div>
                       </div>
-                      <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+                      <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground border-t pt-3">
                         <div className="flex items-center">
                           <MapPin className="h-3 w-3 mr-1" />
                           <span>{product.regionCount || 0}</span>
@@ -116,11 +143,11 @@ export function RecentProductsCarousel({ products }: RecentProductsCarouselProps
               </CarouselItem>
             ))}
           </CarouselContent>
-          <div className="absolute -left-2 top-1/2 -translate-y-1/2">
-            <CarouselPrevious className="relative left-0 translate-y-0 bg-background border shadow-sm hover:bg-background" />
+          <div className="absolute -left-3 top-1/2 -translate-y-1/2">
+            <CarouselPrevious className="relative left-0 translate-y-0 bg-background/80 backdrop-blur-sm border shadow-md hover:bg-background" />
           </div>
-          <div className="absolute -right-2 top-1/2 -translate-y-1/2">
-            <CarouselNext className="relative right-0 translate-y-0 bg-background border shadow-sm hover:bg-background" />
+          <div className="absolute -right-3 top-1/2 -translate-y-1/2">
+            <CarouselNext className="relative right-0 translate-y-0 bg-background/80 backdrop-blur-sm border shadow-md hover:bg-background" />
           </div>
         </Carousel>
       </div>

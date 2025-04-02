@@ -6,7 +6,7 @@ import { QueryClient } from '@tanstack/react-query';
 /**
  * Custom API request function for use with React Query
  */
-export async function apiRequest(url: string, options: RequestInit = {}) {
+export async function apiRequest<T = any>(url: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(url, {
     ...options,
     headers: {

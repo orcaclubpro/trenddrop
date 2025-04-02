@@ -291,12 +291,13 @@ export async function initializeDatabase(): Promise<boolean> {
       process.env.DATABASE_URL = 'file:./data/trenddrop.db';
     }
     
-    // Create SQL client based on the URL
+    // Create SQL client based on the URL or USE_SQLITE flag
     let client;
-    if (process.env.DATABASE_URL.startsWith('file:')) {
+    if (process.env.USE_SQLITE === 'true' || (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('file:'))) {
       // Local SQLite database
+      console.log('[Database] Using SQLite database');
       const SQLite = (await import('better-sqlite3')).default;
-      const dbPath = process.env.DATABASE_URL.replace('file:', '');
+      const dbPath = process.env.DATABASE_URL?.replace('file:', '') || './data/trenddrop.db';
       
       // Ensure directory exists
       const dir = path.dirname(dbPath);
@@ -309,6 +310,7 @@ export async function initializeDatabase(): Promise<boolean> {
       db = sqliteDb;
     } else {
       // PostgreSQL database - use postgres.js
+      console.log('[Database] Using PostgreSQL database:', process.env.DATABASE_URL);
       client = postgres(process.env.DATABASE_URL, { 
         max: 10, // Maximum pool size
         idle_timeout: 20, // Timeout after 20 seconds of inactivity

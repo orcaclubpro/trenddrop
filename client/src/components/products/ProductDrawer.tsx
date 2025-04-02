@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'wouter';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { 
   ShoppingCart, 
   TrendingUp, 
@@ -10,7 +10,9 @@ import {
   ArrowUpRight, 
   Video, 
   MapPin,
-  X
+  X,
+  RefreshCcw,
+  ImageOff
 } from 'lucide-react';
 
 import { 
@@ -27,6 +29,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { formatCurrency, formatCompactNumber, formatDate, getTrendScoreColor } from '@/lib/utils';
+import { ProductService, TrendService, RegionService, VideoService } from '@/services';
+import { API, WS_MESSAGE_TYPES } from '@/lib/constants';
+import { useWebSocket } from '@/hooks/use-websocket';
 
 interface Product {
   id: number;
@@ -81,44 +86,127 @@ interface ProductDrawerProps {
 export function ProductDrawer({ productId, isOpen, onClose }: ProductDrawerProps) {
   const { toast } = useToast();
   const [, navigate] = useLocation();
+  const queryClient = useQueryClient();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
-  const { data: product, isLoading, error } = useQuery<Product>({
-    queryKey: ['/api/products', productId],
+  // Reset image error when productId changes
+  useEffect(() => {
+    setImageError(false);
+  }, [productId]);
+
+  // WebSocket integration for real-time updates
+  useWebSocket({
+    onMessage: (message) => {
+      // Handle both potential message types
+      if ((message.type === WS_MESSAGE_TYPES.PRODUCT_UPDATE || 
+           message.type === WS_MESSAGE_TYPES.PRODUCT_UPDATED) && 
+          message.productId === productId) {
+        console.log(`Product ${productId} update received, refreshing drawer data`);
+        
+        // Invalidate queries to refresh all product data
+        queryClient.invalidateQueries({ queryKey: [API.PRODUCTS, productId] });
+        queryClient.invalidateQueries({ queryKey: [API.TRENDS, productId] });
+        queryClient.invalidateQueries({ queryKey: [API.REGIONS, productId] });
+        queryClient.invalidateQueries({ queryKey: [API.VIDEOS, productId] });
+      }
+    }
+  });
+
+  // Fetch product data
+  const { 
+    data: product, 
+    isLoading: isProductLoading, 
+    error: productError,
+    refetch: refetchProduct
+  } = useQuery({
+    queryKey: [API.PRODUCTS, productId],
+    queryFn: () => productId ? ProductService.getProduct(productId) : null,
     enabled: isOpen && productId !== null,
-    throwOnError: false
+    retry: 2
   });
 
   // Get trends data
-  const { data: trends } = useQuery<Trend[]>({
-    queryKey: ['/api/trends/product', productId],
-    enabled: isOpen && productId !== null,
-    throwOnError: false
+  const { 
+    data: trends,
+    isLoading: isTrendsLoading,
+    refetch: refetchTrends
+  } = useQuery({
+    queryKey: [API.TRENDS, productId],
+    queryFn: () => productId ? TrendService.getTrendsForProduct(productId) : [],
+    enabled: isOpen && productId !== null && !!product,
+    retry: 1
   });
 
   // Get regions data
-  const { data: regions } = useQuery<Region[]>({
-    queryKey: ['/api/regions/product', productId],
-    enabled: isOpen && productId !== null,
-    throwOnError: false
+  const { 
+    data: regions,
+    isLoading: isRegionsLoading,
+    refetch: refetchRegions
+  } = useQuery({
+    queryKey: [API.REGIONS, productId],
+    queryFn: () => productId ? RegionService.getRegionsForProduct(productId) : [],
+    enabled: isOpen && productId !== null && !!product,
+    retry: 1
   });
 
   // Get videos data
-  const { data: videos } = useQuery<Video[]>({
-    queryKey: ['/api/videos/product', productId],
-    enabled: isOpen && productId !== null,
-    throwOnError: false
+  const { 
+    data: videos,
+    isLoading: isVideosLoading,
+    refetch: refetchVideos
+  } = useQuery({
+    queryKey: [API.VIDEOS, productId],
+    queryFn: () => productId ? VideoService.getVideosForProduct(productId) : [],
+    enabled: isOpen && productId !== null && !!product,
+    retry: 1
   });
 
+  // Handle image load error
+  const handleImageError = () => {
+    setImageError(true);
+  };
+
+  // Refresh all data
+  const handleRefresh = async () => {
+    if (!productId) return;
+    
+    setIsRefreshing(true);
+    try {
+      await refetchProduct();
+      
+      if (product) {
+        await Promise.all([
+          refetchTrends(),
+          refetchRegions(),
+          refetchVideos()
+        ]);
+      }
+      
+      toast({
+        title: 'Data Refreshed',
+        description: 'Latest product data has been loaded'
+      });
+    } catch (error) {
+      toast({
+        title: 'Refresh Failed',
+        description: 'Could not refresh product data',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   useEffect(() => {
-    if (error) {
+    if (productError) {
       toast({
         title: 'Error',
         description: 'Failed to load product details',
         variant: 'destructive',
       });
-      onClose();
     }
-  }, [error, toast, onClose]);
+  }, [productError, toast]);
 
   const handleViewFullDetails = () => {
     if (productId) {
@@ -126,6 +214,8 @@ export function ProductDrawer({ productId, isOpen, onClose }: ProductDrawerProps
       onClose();
     }
   };
+
+  const isLoading = isProductLoading || isTrendsLoading || isRegionsLoading || isVideosLoading;
 
   if (!isOpen || !productId) return null;
 
@@ -136,15 +226,28 @@ export function ProductDrawer({ productId, isOpen, onClose }: ProductDrawerProps
           <div className="p-6 pb-0 flex items-center justify-between">
             <SheetHeader className="text-left">
               <SheetTitle className="text-2xl font-bold">
-                {isLoading ? 'Loading...' : product?.name}
+                {isLoading ? 'Loading...' : product?.name || 'Product Details'}
               </SheetTitle>
               <SheetDescription className="text-base">
                 {isLoading ? '' : `${product?.category || 'Unknown category'}`}
               </SheetDescription>
             </SheetHeader>
-            <SheetClose className="rounded-full p-2 hover:bg-muted">
-              <X className="h-4 w-4" />
-            </SheetClose>
+            <div className="flex gap-2">
+              {product && (
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="rounded-full" 
+                  onClick={handleRefresh}
+                  disabled={isRefreshing}
+                >
+                  <RefreshCcw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                </Button>
+              )}
+              <SheetClose className="rounded-full p-2 hover:bg-muted">
+                <X className="h-4 w-4" />
+              </SheetClose>
+            </div>
           </div>
 
           <ScrollArea className="flex-1 px-6">
@@ -152,8 +255,39 @@ export function ProductDrawer({ productId, isOpen, onClose }: ProductDrawerProps
               <div className="py-8 text-center">
                 <span>Loading product details...</span>
               </div>
+            ) : productError ? (
+              <div className="py-8 text-center">
+                <p className="text-destructive mb-4">Failed to load product details</p>
+                <Button onClick={handleRefresh} disabled={isRefreshing}>
+                  <RefreshCcw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  Try Again
+                </Button>
+              </div>
             ) : product ? (
               <div className="py-6 space-y-6">
+                {/* Product Image */}
+                {product.imageUrl && !imageError ? (
+                  <div className="rounded-md overflow-hidden h-48 bg-muted/40 relative">
+                    <img 
+                      src={product.imageUrl} 
+                      alt={product.name} 
+                      className="w-full h-full object-cover"
+                      onError={handleImageError}
+                    />
+                  </div>
+                ) : (
+                  <div className="rounded-md overflow-hidden h-48 bg-muted/40 flex items-center justify-center">
+                    {imageError ? (
+                      <div className="flex flex-col items-center justify-center text-muted-foreground">
+                        <ImageOff className="h-10 w-10 mb-2" />
+                        <span className="text-sm">Image unavailable</span>
+                      </div>
+                    ) : (
+                      <Package className="h-12 w-12 text-muted-foreground" />
+                    )}
+                  </div>
+                )}
+
                 {/* Key Metrics */}
                 <div className="grid grid-cols-2 gap-4">
                   <Card>
@@ -179,7 +313,7 @@ export function ProductDrawer({ productId, isOpen, onClose }: ProductDrawerProps
                       <MapPin className="h-5 w-5 mb-2 text-muted-foreground" />
                       <span className="text-sm text-muted-foreground">Regions</span>
                       <span className="text-xl font-bold">
-                        {product.regionCount || 0}
+                        {regions?.length || 0}
                       </span>
                     </CardContent>
                   </Card>
@@ -188,7 +322,7 @@ export function ProductDrawer({ productId, isOpen, onClose }: ProductDrawerProps
                       <Video className="h-5 w-5 mb-2 text-muted-foreground" />
                       <span className="text-sm text-muted-foreground">Videos</span>
                       <span className="text-xl font-bold">
-                        {product.videoCount || 0}
+                        {videos?.length || 0}
                       </span>
                     </CardContent>
                   </Card>
@@ -203,9 +337,9 @@ export function ProductDrawer({ productId, isOpen, onClose }: ProductDrawerProps
                 </div>
 
                 {/* Regional Data */}
-                {regions && regions.length > 0 && (
-                  <div>
-                    <h3 className="text-lg font-medium mb-2">Top Regions</h3>
+                <div>
+                  <h3 className="text-lg font-medium mb-2">Top Regions</h3>
+                  {regions && regions.length > 0 ? (
                     <div className="space-y-3">
                       {regions.slice(0, 3).map((region: Region) => (
                         <div key={region.id} className="flex justify-between items-center">
@@ -216,14 +350,23 @@ export function ProductDrawer({ productId, isOpen, onClose }: ProductDrawerProps
                           <span className="font-medium">{region.percentage}%</span>
                         </div>
                       ))}
+                      {regions.length > 3 && (
+                        <p className="text-xs text-muted-foreground text-center">
+                          + {regions.length - 3} more regions
+                        </p>
+                      )}
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <div className="text-muted-foreground text-sm p-4 text-center border rounded-md">
+                      No regional data available
+                    </div>
+                  )}
+                </div>
 
                 {/* Marketing Videos */}
-                {videos && videos.length > 0 && (
-                  <div>
-                    <h3 className="text-lg font-medium mb-2">Marketing Videos</h3>
+                <div>
+                  <h3 className="text-lg font-medium mb-2">Marketing Videos</h3>
+                  {videos && videos.length > 0 ? (
                     <div className="space-y-3">
                       {videos.slice(0, 3).map((video: Video) => (
                         <a 
@@ -231,91 +374,45 @@ export function ProductDrawer({ productId, isOpen, onClose }: ProductDrawerProps
                           href={video.videoUrl} 
                           target="_blank" 
                           rel="noopener noreferrer"
-                          className="block p-3 border rounded-md hover:bg-muted/50 transition-colors"
+                          className="flex justify-between items-center p-2 rounded-md border hover:bg-muted/50 transition-colors"
                         >
-                          <div className="flex justify-between items-center">
-                            <div className="flex-1">
-                              <h4 className="font-medium text-sm line-clamp-1">{video.title}</h4>
-                              <div className="flex items-center text-muted-foreground text-xs mt-1">
-                                <span>{video.platform}</span>
-                                <span className="mx-2">•</span>
-                                <span>{formatCompactNumber(video.views)} views</span>
-                              </div>
-                            </div>
-                            <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
+                          <div className="flex items-center overflow-hidden">
+                            <Video className="h-4 w-4 mr-2 text-muted-foreground flex-shrink-0" />
+                            <span className="truncate">{video.title || 'Untitled Video'}</span>
                           </div>
+                          <ArrowUpRight className="h-3 w-3 text-muted-foreground flex-shrink-0" />
                         </a>
                       ))}
+                      {videos.length > 3 && (
+                        <p className="text-xs text-muted-foreground text-center">
+                          + {videos.length - 3} more videos
+                        </p>
+                      )}
                     </div>
-                  </div>
-                )}
-
-                {/* Wholesale Links */}
-                <div>
-                  <h3 className="text-lg font-medium mb-2">Wholesale Options</h3>
-                  <div className="space-y-3">
-                    <a 
-                      href={`https://alibaba.com/trade/search?SearchText=${encodeURIComponent(product.name)}`} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="flex items-center justify-between p-3 border rounded-md hover:bg-muted/50 transition-colors"
-                    >
-                      <div className="flex items-center">
-                        <Package className="h-4 w-4 mr-2 text-muted-foreground" />
-                        <span>Alibaba</span>
-                      </div>
-                      <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
-                    </a>
-                    <a 
-                      href={`https://www.aliexpress.com/wholesale?SearchText=${encodeURIComponent(product.name)}`} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="flex items-center justify-between p-3 border rounded-md hover:bg-muted/50 transition-colors"
-                    >
-                      <div className="flex items-center">
-                        <Package className="h-4 w-4 mr-2 text-muted-foreground" />
-                        <span>AliExpress</span>
-                      </div>
-                      <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
-                    </a>
-                  </div>
+                  ) : (
+                    <div className="text-muted-foreground text-sm p-4 text-center border rounded-md">
+                      No video data available
+                    </div>
+                  )}
                 </div>
 
-                {/* Trend Analysis Summary */}
-                {trends && trends.length > 0 && (
-                  <div>
-                    <h3 className="text-lg font-medium mb-2">Trend Summary</h3>
-                    <p className="text-sm text-muted-foreground">
-                      This product has shown {trends[trends.length - 1].value > trends[0].value ? 'positive' : 'negative'} trend
-                      movement over the last {trends.length} days, with a {trends[trends.length - 1].value > trends[0].value ? 'growth' : 'decline'} 
-                      rate of approximately {Math.abs(Math.round((trends[trends.length - 1].value - trends[0].value) / trends[0].value * 100))}%.
-                    </p>
-                  </div>
-                )}
-
-                {/* Additional info */}
-                <div className="flex items-center justify-between text-xs text-muted-foreground pt-2">
-                  <span>Added on {formatDate(product.createdAt)}</span>
-                  <span>ID: {product.id}</span>
+                <div className="pt-4">
+                  <Button 
+                    onClick={handleViewFullDetails} 
+                    className="w-full"
+                  >
+                    View Full Details
+                    <ArrowUpRight className="ml-2 h-4 w-4" />
+                  </Button>
                 </div>
               </div>
             ) : (
               <div className="py-8 text-center">
-                <span>Product not found</span>
+                <p className="text-muted-foreground mb-4">Product not found</p>
+                <Button onClick={onClose}>Close</Button>
               </div>
             )}
           </ScrollArea>
-          
-          <div className="p-6 border-t">
-            <div className="grid grid-cols-2 gap-4">
-              <Button variant="outline" onClick={onClose}>
-                Close
-              </Button>
-              <Button onClick={handleViewFullDetails}>
-                View Full Details
-              </Button>
-            </div>
-          </div>
         </div>
       </SheetContent>
     </Sheet>
